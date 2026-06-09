@@ -490,7 +490,7 @@
                         ...sp,
                         epidural: false, induction: false, prom: false,
                         deletedBySimon: false, _new: true,
-                        assessedAt: new Date().toISOString()
+                        assessedAt: parseToDate(rawUpdateStr).toISOString()
                     });
                 }
             });
@@ -757,8 +757,10 @@
                 if (unchanged) return;
             }
 
-            const now = new Date().toISOString();
-            const ref = new Date(now);
+            // Use Simon's last-update time as the assessment timestamp,
+            // not the page-load time — this reflects when the data actually changed.
+            const now = parseToDate(rawUpdateStr).toISOString();
+            const ref = parseToDate(rawUpdateStr);
             const sh  = simonHours(p);
             const lh  = leoHours(p);
 
@@ -785,11 +787,11 @@
             const snaps = allSnapshots();
             const k = patientKey(p);
             const data = snaps[k];
-            if (!data || data.history.length === 0) return new Date().toISOString();
+            if (!data || data.history.length === 0) return parseToDate(rawUpdateStr).toISOString();
             const last = data.history[data.history.length - 1];
             const unchanged = ['dilation','effacement','station','epidural','induction','prom']
                 .every(f => String(p[f]) === String(last[f]));
-            return unchanged ? last.time : new Date().toISOString();
+            return unchanged ? last.time : parseToDate(rawUpdateStr).toISOString();
         }
 
         function setActualLaborTime(k, value) {
