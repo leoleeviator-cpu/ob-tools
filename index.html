@@ -479,7 +479,8 @@
                     myMap.set(k, {
                         ...sp,
                         epidural: false, induction: false, prom: false,
-                        deletedBySimon: false, _new: true
+                        deletedBySimon: false, _new: true,
+                        assessedAt: new Date().toISOString()
                     });
                 }
             });
@@ -599,7 +600,7 @@
             totalHours = totalHours / stationBonus;
             if (totalHours < 0.33) totalHours = 0.33;
 
-            return formatEstimate(totalHours);
+            return formatEstimate(totalHours, p.assessedAt);
         }
 
         // ── PREDICTION ENGINE: Leo v2 (improved, evidence-based) ─────────────
@@ -681,12 +682,13 @@
                 hasPROM      ? '<span class="flag-badge flag-prom">PROM</span>' : '',
             ].join('');
 
-            return formatEstimate(total) + (flags ? `<br><small>${flags}</small>` : '');
+            return formatEstimate(total, p.assessedAt) + (flags ? `<br><small>${flags}</small>` : '');
         }
 
         // Shared formatter: hours → HH:MM (today/明/後/date) + (Xh)
-        function formatEstimate(totalHours) {
-            const ref    = parseToDate(rawUpdateStr);
+        // refStr: per-patient assessedAt ISO string (falls back to rawUpdateStr)
+        function formatEstimate(totalHours, refStr) {
+            const ref    = parseToDate(refStr || rawUpdateStr);
             const estDate = new Date(ref.getTime() + totalHours * 3600000);
 
             const refDay = new Date(ref);     refDay.setHours(0,0,0,0);
@@ -836,7 +838,7 @@
             patients.unshift({
                 room: '', name: '', para: '', dilation: '', effacement: '',
                 station: '', vs: '', epidural: false, induction: false, prom: false,
-                deletedBySimon: false
+                deletedBySimon: false, assessedAt: new Date().toISOString()
             });
             renderTable();
         }
