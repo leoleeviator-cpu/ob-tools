@@ -116,6 +116,16 @@
         }
         .footer-info a { color: var(--accent-color); text-decoration: none; }
 
+        /* History panel */
+        .history-row > td { padding: 0 !important; border-top: 2px solid var(--primary-color); }
+        .history-panel { padding: 10px 14px; background: #fff9fc; }
+        .history-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 8px; min-width: 0; }
+        .history-table th, .history-table td { border: 1px solid #f0c4d4; padding: 4px 6px; text-align: center; white-space: nowrap; }
+        .history-table th { background: #fce4ec; color: #880e4f; font-weight: bold; }
+        .history-table .col-simon { background-color: #f3e5f5; color: #6a1b9a; }
+        .history-table .col-leo   { background-color: #fff0f5; color: var(--accent-color); }
+        .btn-history { background: #f8bbd0; color: #880e4f; padding: 2px 8px; font-size: 10px; border-radius: 3px; cursor: pointer; border: none; font-weight: bold; margin-top: 3px; }
+
         /* Setup notice */
         .setup-notice {
             background: #fff8e1; border: 1px solid #ffcc02; border-radius: 6px;
@@ -533,6 +543,7 @@
                 if (HAS_OWN_BACKEND) silentSave();
 
                 renderTable();
+                autoSnapshot();
                 updateSyncStatus(true);
 
             } catch (e) {
@@ -573,14 +584,14 @@
         //  Preserved exactly as published at simonjian2003.github.io/ob-tools
         //  (Friedman-inspired piecewise, no intervention adjustments)
         //
-        function simonEstimate(p) {
+        function simonHours(p) {
             const dil     = parseFloat(p.dilation);
             const eff     = parseFloat(p.effacement) || 0;
             const station = parseFloat(p.station) || 0;
             const paraStr = p.para ? p.para.toString().toLowerCase() : '';
 
-            if (isNaN(dil) || dil < 0) return "--:--";
-            if (dil >= 10) return "已全開";
+            if (isNaN(dil) || dil < 0) return null;
+            if (dil >= 10) return 0;
 
             const isMultipara = !(paraStr.includes('p0') || paraStr === '0');
             const latentRate  = isMultipara ? 0.8 : 0.4;
@@ -598,9 +609,14 @@
 
             const stationBonus = 1 + (station * 0.1);
             totalHours = totalHours / stationBonus;
-            if (totalHours < 0.33) totalHours = 0.33;
+            return Math.max(0.33, totalHours);
+        }
 
-            return formatEstimate(totalHours, p.assessedAt);
+        function simonEstimate(p) {
+            const h = simonHours(p);
+            if (h === null) return "--:--";
+            if (h === 0)    return "已全開";
+            return formatEstimate(h, p.assessedAt);
         }
 
         // ── PREDICTION ENGINE: Leo v2 (improved, evidence-based) ─────────────
@@ -617,7 +633,7 @@
         //    • Huang et al. eClinicalMedicine 2025 – PROM OR 1.44 (≥1h 2nd stage),
         //                                             epidural OR 1.80
         //
-        function leoEstimate(p) {
+        function leoHours(p) {
             const dil     = parseFloat(p.dilation);
             const eff     = parseFloat(p.effacement) || 0;
             const station = parseFloat(p.station) || 0;
@@ -627,10 +643,9 @@
             const hasInduction = boolParse(p.induction);
             const hasPROM      = boolParse(p.prom);
 
-            if (isNaN(dil) || dil < 0) return "--:--";
-            if (dil >= 10) return "已全開";
+            if (isNaN(dil) || dil < 0) return null;
+            if (dil >= 10) return 0;
 
-            // Parity: catches P0, G1P0, Para 0, para0, nullipara, etc.
             const isMultipara = !(
                 paraStr === '0' ||
                 /p\s*0/.test(paraStr) ||
@@ -639,22 +654,17 @@
                 paraStr === 'primipara'
             );
 
-            // Zhang 2010 median rates (cm/h)
             const R_L = isMultipara ? 0.8 : 0.5;
             const R_A = isMultipara ? 2.5 : 1.5;
-
-            // Effacement factor [0.5, 1.0] — prevents extreme latent estimates
-            const effFactor = 0.5 + 0.5 * (Math.min(100, Math.max(0, eff)) / 100);
-
-            // Station multiplier [0.5, 1.5]
+            const effFactor   = 0.5 + 0.5 * (Math.min(100, Math.max(0, eff)) / 100);
             const stationMult = Math.max(0.5, Math.min(1.5, 1 + station * 0.1));
 
             let latentH = 0, activeH = 0;
 
             if (dil < 6) {
                 let lh = (6 - dil) / (R_L * effFactor);
-                if (hasInduction) lh *= 1.4;   // ACOG: latent phase "significantly longer"
-                if (hasPROM)      lh *= 0.9;   // direct head pressure accelerates dilation
+                if (hasInduction) lh *= 1.4;
+                if (hasPROM)      lh *= 0.9;
                 latentH = lh;
 
                 let ah = (4 / R_A) / stationMult;
@@ -666,23 +676,27 @@
                 activeH = ah;
             }
 
-            // 2nd stage medians (Zhang/ACOG Table 1)
             let s2h = isMultipara
                 ? (hasEpidural ? 0.35 : 0.15)
                 : (hasEpidural ? 1.1  : 0.6);
             s2h = s2h / stationMult;
-            if (hasPROM) s2h *= 1.15;  // Huang et al. 2025: OR 1.44 → ~1.15 time adj.
+            if (hasPROM) s2h *= 1.15;
 
-            const total = Math.max(0.25, latentH + activeH + s2h);
+            return Math.max(0.25, latentH + activeH + s2h);
+        }
 
-            // Append intervention badges
+        function leoEstimate(p) {
+            const h = leoHours(p);
+            if (h === null) return "--:--";
+            if (h === 0)    return "已全開";
+
             const flags = [
-                hasEpidural  ? '<span class="flag-badge flag-epi">Epi</span>'   : '',
-                hasInduction ? '<span class="flag-badge flag-ind">Ind</span>'   : '',
-                hasPROM      ? '<span class="flag-badge flag-prom">PROM</span>' : '',
+                boolParse(p.epidural)  ? '<span class="flag-badge flag-epi">Epi</span>'   : '',
+                boolParse(p.induction) ? '<span class="flag-badge flag-ind">Ind</span>'   : '',
+                boolParse(p.prom)      ? '<span class="flag-badge flag-prom">PROM</span>' : '',
             ].join('');
 
-            return formatEstimate(total, p.assessedAt) + (flags ? `<br><small>${flags}</small>` : '');
+            return formatEstimate(h, p.assessedAt) + (flags ? `<br><small>${flags}</small>` : '');
         }
 
         // Shared formatter: hours → HH:MM (today/明/後/date) + (Xh)
@@ -701,6 +715,173 @@
             else if (diff  >  2) label = `(${estDate.getMonth()+1}/${estDate.getDate()}) `;
 
             return `${label}${String(estDate.getHours()).padStart(2,'0')}:${String(estDate.getMinutes()).padStart(2,'0')} (${totalHours.toFixed(1)}h)`;
+        }
+
+        // ── Snapshot & History Tracking ───────────────────────────────────────
+        //
+        //  Snapshots are stored in localStorage (no backend needed).
+        //  A new snapshot is taken whenever clinical fields change —
+        //  each snapshot captures its own timestamp as the prediction reference,
+        //  so predicted times never drift on future refreshes.
+        //
+
+        const SNAP_KEY = 'ob_snapshots_v1';
+
+        function allSnapshots() {
+            try { return JSON.parse(localStorage.getItem(SNAP_KEY) || '{}'); }
+            catch(e) { return {}; }
+        }
+
+        function saveAllSnapshots(data) {
+            localStorage.setItem(SNAP_KEY, JSON.stringify(data));
+        }
+
+        function takeSnapshot(p) {
+            if (p.deletedBySimon) return;
+            const dil = parseFloat(p.dilation);
+            if (isNaN(dil) || p.dilation === '' || p.dilation === undefined) return;
+
+            const snaps = allSnapshots();
+            const k = patientKey(p);
+            if (!snaps[k]) snaps[k] = { history: [], actualLaborTime: '' };
+
+            const data = snaps[k];
+            const last = data.history[data.history.length - 1];
+
+            // Skip if nothing clinically changed since last snapshot
+            if (last) {
+                const unchanged = ['dilation','effacement','station','epidural','induction','prom']
+                    .every(f => String(p[f]) === String(last[f]));
+                if (unchanged) return;
+            }
+
+            const now = new Date().toISOString();
+            const ref = new Date(now);
+            const sh  = simonHours(p);
+            const lh  = leoHours(p);
+
+            data.history.push({
+                time:         now,
+                dilation:     p.dilation,   effacement: p.effacement,
+                station:      p.station,    epidural:   p.epidural,
+                induction:    p.induction,  prom:       p.prom,
+                simonHours:   sh,
+                simonAbsTime: (sh && sh > 0) ? new Date(ref.getTime() + sh * 3600000).toISOString() : null,
+                leoHours:     lh,
+                leoAbsTime:   (lh && lh > 0) ? new Date(ref.getTime() + lh * 3600000).toISOString() : null,
+            });
+
+            saveAllSnapshots(snaps);
+        }
+
+        function autoSnapshot() { patients.forEach(p => takeSnapshot(p)); }
+
+        function setActualLaborTime(k, value) {
+            const snaps = allSnapshots();
+            if (!snaps[k]) snaps[k] = { history: [], actualLaborTime: '' };
+            snaps[k].actualLaborTime = value;
+            saveAllSnapshots(snaps);
+        }
+
+        function toggleHistory(i) {
+            const row = document.getElementById(`histRow_${i}`);
+            if (!row) return;
+            const hidden = row.style.display === 'none' || row.style.display === '';
+            row.style.display = hidden ? 'table-row' : 'none';
+            // Refresh panel content each time it opens so deltas are current
+            if (hidden) rerenderHistory(i);
+        }
+
+        function fmtAbsTime(d) {
+            return `${d.getMonth()+1}/${d.getDate()} `
+                 + `${String(d.getHours()).padStart(2,'0')}:`
+                 + `${String(d.getMinutes()).padStart(2,'0')}`;
+        }
+
+        function renderHistoryPanel(p, i) {
+            const snaps = allSnapshots();
+            const k = patientKey(p);
+            const data = snaps[k] || { history: [], actualLaborTime: '' };
+            const actualTime = data.actualLaborTime ? new Date(data.actualLaborTime) : null;
+
+            let rows = '';
+            data.history.forEach(snap => {
+                const t = new Date(snap.time);
+
+                const simonStr = snap.simonHours === 0 ? '已全開'
+                    : snap.simonAbsTime
+                        ? `${fmtAbsTime(new Date(snap.simonAbsTime))} (${snap.simonHours.toFixed(1)}h)`
+                        : '--';
+                const leoStr = snap.leoHours === 0 ? '已全開'
+                    : snap.leoAbsTime
+                        ? `${fmtAbsTime(new Date(snap.leoAbsTime))} (${snap.leoHours.toFixed(1)}h)`
+                        : '--';
+
+                let simonDelta = '', leoDelta = '';
+                if (actualTime) {
+                    if (snap.simonAbsTime && snap.simonHours > 0) {
+                        const d = (actualTime - new Date(snap.simonAbsTime)) / 3600000;
+                        const col = Math.abs(d) < 2 ? '#2e7d32' : '#c62828';
+                        simonDelta = `<br><small style="color:${col}">${d > 0 ? '+' : ''}${d.toFixed(1)}h vs 實際</small>`;
+                    }
+                    if (snap.leoAbsTime && snap.leoHours > 0) {
+                        const d = (actualTime - new Date(snap.leoAbsTime)) / 3600000;
+                        const col = Math.abs(d) < 2 ? '#2e7d32' : '#c62828';
+                        leoDelta = `<br><small style="color:${col}">${d > 0 ? '+' : ''}${d.toFixed(1)}h vs 實際</small>`;
+                    }
+                }
+
+                const flags = [
+                    boolParse(snap.epidural)  ? '<span class="flag-badge flag-epi">Epi</span>'   : '',
+                    boolParse(snap.induction) ? '<span class="flag-badge flag-ind">Ind</span>'   : '',
+                    boolParse(snap.prom)      ? '<span class="flag-badge flag-prom">PROM</span>' : '',
+                ].join('') || '—';
+
+                rows += `<tr>
+                    <td>${fmtAbsTime(t)}</td>
+                    <td>${snap.dilation}</td><td>${snap.effacement}</td><td>${snap.station}</td>
+                    <td>${flags}</td>
+                    <td class="col-simon">${simonStr}${simonDelta}</td>
+                    <td class="col-leo">${leoStr}${leoDelta}</td>
+                </tr>`;
+            });
+
+            if (!rows) rows = `<tr><td colspan="7" style="color:#999;text-align:center;padding:8px">
+                尚無評估記錄（資料變動時自動記錄）</td></tr>`;
+
+            const actualDisplay = actualTime
+                ? `<span style="color:#2e7d32;margin-left:8px;font-size:11px">✓ ${fmtAbsTime(actualTime)}</span>`
+                : '';
+
+            const escapedKey = k.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+
+            return `<div class="history-panel">
+                <div style="font-weight:bold;color:#880e4f;margin-bottom:6px;font-size:12px">
+                    📊 評估記錄追蹤 — ${p.name || '新患者'}
+                </div>
+                <div style="overflow-x:auto">
+                <table class="history-table">
+                    <thead><tr>
+                        <th>評估時間</th><th>Dil</th><th>Eff%</th><th>Sta.</th><th>旗標</th>
+                        <th class="col-simon">Simon v1 預測</th>
+                        <th class="col-leo">Leo v2 預測</th>
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+                </div>
+                <div style="margin-top:8px;font-size:12px;display:flex;align-items:center;flex-wrap:wrap;gap:6px">
+                    <label style="font-weight:bold;color:#880e4f">實際分娩時間：</label>
+                    <input type="datetime-local" value="${data.actualLaborTime || ''}"
+                        onchange="setActualLaborTime('${escapedKey}', this.value); rerenderHistory(${i})"
+                        style="font-size:12px;padding:3px 6px;border:1px solid #ddd;border-radius:4px">
+                    ${actualDisplay}
+                </div>
+            </div>`;
+        }
+
+        function rerenderHistory(i) {
+            const panel = document.getElementById(`histPanel_${i}`);
+            if (panel && patients[i]) panel.innerHTML = renderHistoryPanel(patients[i], i);
         }
 
         // ── Render ────────────────────────────────────────────────────────────
@@ -778,10 +959,20 @@
                         <input class="edit-only" type="checkbox" ${boolParse(p.prom) ? 'checked' : ''} onchange="updateField(${i},'prom',this.checked)">
                     </td>
                     <td class="col-simon display-only">${isArchived ? '<span style="color:#ccc">—</span>' : simonEstimate(p)}</td>
-                    <td class="col-leo   display-only">${leoEstimate(p)}</td>
+                    <td class="col-leo   display-only">
+                        ${isArchived ? '<span style="color:#ccc">—</span>' : leoEstimate(p)}
+                        <br><button class="btn-history" onclick="toggleHistory(${i})">📊 記錄</button>
+                    </td>
                     <td class="edit-only"><button class="btn-delete" onclick="deleteRow(${i})">刪除</button></td>
                 `;
                 tbody.appendChild(tr);
+
+                const histTr = document.createElement('tr');
+                histTr.id = `histRow_${i}`;
+                histTr.className = 'history-row';
+                histTr.style.display = 'none';
+                histTr.innerHTML = `<td colspan="13"><div id="histPanel_${i}">${renderHistoryPanel(p, i)}</div></td>`;
+                tbody.appendChild(histTr);
             });
         }
 
@@ -872,6 +1063,7 @@
                 body.classList.remove('edit-mode');
                 editBtn.innerText = "進入編輯";
                 refreshBtn.innerText = "刷新";
+                autoSnapshot();
                 saveToCloud();
             } else {
                 body.classList.add('edit-mode');
