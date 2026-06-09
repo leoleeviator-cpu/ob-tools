@@ -34,6 +34,7 @@
         button { padding: 8px 12px; cursor: pointer; border: none; border-radius: 6px; font-weight: bold; transition: 0.3s; font-size: 13px; }
         .btn-edit    { background-color: #64b5f6; color: white; white-space: nowrap; }
         .btn-refresh { background-color: var(--cancel-color); color: white; white-space: nowrap; }
+        .btn-export  { background-color: #26a69a; color: white; white-space: nowrap; }
         .btn-add     { background-color: var(--primary-color); color: white; margin-bottom: 8px; width: 100%; }
         .btn-clear   { background-color: #ff8a65; color: white; margin-bottom: 8px; width: 100%; }
         .btn-delete  { background-color: #e57373; color: white; padding: 4px 6px; font-size: 11px; border-radius: 4px; }
@@ -158,6 +159,8 @@
         <div class="btn-group">
             <button id="mainEditBtn" class="btn-edit" onclick="toggleEditMode()">進入編輯</button>
             <button id="refreshBtn" class="btn-refresh" onclick="handleRefresh()">刷新</button>
+            <button id="exportCsvBtn" class="btn-export" onclick="exportData('csv')" title="匯出所有評估記錄與實際分娩時間 (CSV)">📥 匯出 CSV</button>
+            <button id="exportJsonBtn" class="btn-export" onclick="exportData('json')" title="匯出原始資料 (JSON)">📥 JSON</button>
         </div>
     </div>
 
@@ -850,6 +853,90 @@
             if (!snaps[k]) snaps[k] = { history: [], actualLaborTime: '' };
             snaps[k].actualLaborTime = value;
             saveAllSnapshots(snaps);
+        }
+
+        // ── Export training data ──────────────────────────────────────────────
+        //
+        //  Flattens every stored snapshot into one row, joined with the patient's
+        //  actual labor time. The actual_ttb_h column (real hours from exam to
+        //  birth) is the ground-truth target for re-fitting the algorithm.
+        //
+        function buildExportRows() {
+            const snaps = allSnapshots();
+            // Map patientKey -> friendly name/room from current patient list
+            const idMap = {};
+            patients.forEach(p => { idMap[patientKey(p)] = { name: p.name || '', room: p.room || '' }; });
+
+            const rows = [];
+            Object.keys(snaps).forEach(k => {
+                const data = snaps[k];
+                const actualStr = data.actualLaborTime || '';
+                const actual = actualStr ? new Date(actualStr) : null;
+                const id = idMap[k] || { name: k.split('|')[0] || '', room: k.split('|')[1] || '' };
+
+                (data.history || []).forEach(s => {
+                    const examT = new Date(s.time);
+                    const actualTtb = actual ? (actual - examT) / 3600000 : '';
+                    const errH = (h, abs) => (actual && h > 0 && abs)
+                        ? ((actual - new Date(abs)) / 3600000) : '';
+                    rows.push({
+                        name: id.name, room: id.room,
+                        exam_time: s.time,
+                        dilation: s.dilation, effacement: s.effacement, station: s.station,
+                        epidural: boolParse(s.epidural) ? 1 : 0,
+                        induction: boolParse(s.induction) ? 1 : 0,
+                        prom: boolParse(s.prom) ? 1 : 0,
+                        actual_labor_time: actualStr,
+                        actual_ttb_h: actualTtb === '' ? '' : actualTtb.toFixed(2),
+                        simon_pred_h: (s.simonHours == null ? '' : s.simonHours.toFixed(2)),
+                        simon_err_h: errH(s.simonHours, s.simonAbsTime) === '' ? '' : errH(s.simonHours, s.simonAbsTime).toFixed(2),
+                        leo_pred_h: (s.leoHours == null ? '' : s.leoHours.toFixed(2)),
+                        leo_err_h: errH(s.leoHours, s.leoAbsTime) === '' ? '' : errH(s.leoHours, s.leoAbsTime).toFixed(2),
+                        v3_pred_h: (s.v3Hours == null ? '' : s.v3Hours.toFixed(2)),
+                        v3_err_h: errH(s.v3Hours, s.v3AbsTime) === '' ? '' : errH(s.v3Hours, s.v3AbsTime).toFixed(2),
+                    });
+                });
+            });
+            // Sort by patient then exam time
+            rows.sort((a, b) => (a.name + a.room).localeCompare(b.name + b.room)
+                || new Date(a.exam_time) - new Date(b.exam_time));
+            return rows;
+        }
+
+        function downloadFile(filename, content, mime) {
+            const blob = new Blob([content], { type: mime });
+            const url  = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = filename;
+            document.body.appendChild(a); a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+
+        function exportData(fmt) {
+            const rows = buildExportRows();
+            if (!rows.length) {
+                alert("尚無可匯出的評估記錄。請先讓資料累積（刷新或編輯後會自動記錄），並在記錄面板填入實際分娩時間。");
+                return;
+            }
+            const stamp = formatDisplayTime(new Date()).replace(/[\/: ]/g, '').slice(0, 12);
+
+            if (fmt === 'json') {
+                downloadFile(`ob_labor_data_${stamp}.json`,
+                    JSON.stringify({ exportedAt: new Date().toISOString(), rows }, null, 2),
+                    'application/json');
+                return;
+            }
+            // CSV (UTF-8 BOM so Excel reads Chinese names correctly)
+            const cols = Object.keys(rows[0]);
+            const esc = v => {
+                const s = String(v == null ? '' : v);
+                return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+            };
+            const csv = '﻿' + [cols.join(',')]
+                .concat(rows.map(r => cols.map(c => esc(r[c])).join(',')))
+                .join('\r\n');
+            downloadFile(`ob_labor_data_${stamp}.csv`, csv, 'text/csv;charset=utf-8');
         }
 
         function toggleHistory(i) {
