@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<!-- saved from url=(0075)file:///C:/Users/leole/Claude/Projects/labor%20predicting%20tool/index.html -->
+<html lang="zh-TW"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>產科小工具 (Leo版)</title>
+    <style>
+        :root {
+            --primary-color: #f06292;
+            --bg-color: #fff5f8;
+            --accent-color: #d81b60;
+            --cancel-color: #9e9e9e;
+        }
+
+        body {
+            font-family: "Microsoft JhengHei", -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 10px;
+        }
+
+        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+        h1 { color: #880e4f; margin: 0; font-size: 20px; }
+        .info-bar { margin-top: 4px; color: #666; font-size: 0.78em; line-height: 1.5; }
+        .sync-badge {
+            display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 10px;
+            font-weight: bold; margin-left: 4px;
+        }
+        .sync-ok   { background: #e8f5e9; color: #2e7d32; }
+        .sync-warn { background: #fff3e0; color: #e65100; }
+        .sync-off  { background: #fce4ec; color: #c62828; }
+
+        .btn-group { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+        button { padding: 8px 12px; cursor: pointer; border: none; border-radius: 6px; font-weight: bold; transition: 0.3s; font-size: 13px; }
+        .btn-edit    { background-color: #64b5f6; color: white; white-space: nowrap; }
+        .btn-refresh { background-color: var(--cancel-color); color: white; white-space: nowrap; }
+        .btn-add     { background-color: var(--primary-color); color: white; margin-bottom: 8px; width: 100%; }
+        .btn-clear   { background-color: #ff8a65; color: white; margin-bottom: 8px; width: 100%; }
+        .btn-delete  { background-color: #e57373; color: white; padding: 4px 6px; font-size: 11px; border-radius: 4px; }
+
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            border-radius: 8px;
+            background: white;
+        }
+
+        table { width: 100%; border-collapse: collapse; min-width: 1050px; }
+        th, td { border: 1px solid #eee; padding: 7px 4px; text-align: center; font-size: 12px; }
+        th { background-color: var(--primary-color); color: white; white-space: nowrap; }
+
+        /* Prediction columns */
+        .col-simon { background-color: #f3e5f5; color: #6a1b9a; font-weight: bold; min-width: 135px; font-size: 11px; }
+        .col-leo   { background-color: #fff0f5; color: var(--accent-color); font-weight: bold; min-width: 145px; font-size: 11px; }
+        th.col-simon { background-color: #9c27b0; }
+        th.col-leo   { background-color: #e91e63; }
+
+        .flag-col { width: 36px; }
+
+        /* Archived (deleted by Simon) rows */
+        tr.archived-row td { background-color: #fafafa; color: #bbb; }
+        tr.archived-row .col-simon, tr.archived-row .col-leo { color: #bbb; background-color: #f5f5f5; }
+
+        .badge-archived {
+            display: inline-block; font-size: 10px; font-weight: bold;
+            padding: 1px 5px; border-radius: 3px;
+            background: #eeeeee; color: #9e9e9e;
+        }
+        .badge-new {
+            display: inline-block; font-size: 10px; font-weight: bold;
+            padding: 1px 5px; border-radius: 3px;
+            background: #e3f2fd; color: #1565c0;
+        }
+
+        .edit-only { display: none; }
+        body.edit-mode .edit-only { display: table-cell; }
+        body.edit-mode button.edit-only { display: block; }
+        body.edit-mode .display-only { display: none; }
+        body.edit-mode .btn-edit { background-color: #4caf50; }
+
+        input[type="text"], input[type="number"] {
+            width: 100%; padding: 5px 3px; border: 1px solid #ddd; border-radius: 4px;
+            box-sizing: border-box; font-size: 13px;
+        }
+        input[type="checkbox"] {
+            width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent-color);
+        }
+
+        .flag-badge {
+            display: inline-block; font-size: 10px; font-weight: bold;
+            padding: 1px 4px; border-radius: 3px; margin: 1px;
+        }
+        .flag-epi  { background: #e3f2fd; color: #1565c0; }
+        .flag-ind  { background: #f3e5f5; color: #6a1b9a; }
+        .flag-prom { background: #fff3e0; color: #e65100; }
+
+        #loadingOverlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.85); z-index: 1000;
+            justify-content: center; align-items: center;
+            font-weight: bold; color: var(--accent-color); font-size: 15px;
+        }
+
+        .legend {
+            margin-top: 10px; padding: 8px 12px;
+            background: #fce4ec; border-radius: 6px;
+            font-size: 11px; color: #880e4f; line-height: 1.8;
+        }
+        .legend strong { color: #d81b60; }
+
+        .footer-info {
+            margin-top: 16px; padding: 10px; text-align: center;
+            color: #999; font-size: 11px; line-height: 1.6;
+        }
+        .footer-info a { color: var(--accent-color); text-decoration: none; }
+
+        /* Setup notice */
+        .setup-notice {
+            background: #fff8e1; border: 1px solid #ffcc02; border-radius: 6px;
+            padding: 10px 14px; margin-bottom: 10px; font-size: 12px; color: #795548;
+        }
+        .setup-notice strong { color: #e65100; }
+    </style>
+</head>
+<body id="mainBody">
+
+    <div id="loadingOverlay" style="display: none;">同步資料中...</div>
+
+    <div id="setupNotice" class="setup-notice" style="display: block;">
+        ⚠️ <strong>尚未設定自己的後端</strong>：目前僅從 Simon 的資料庫讀取，修改不會儲存。
+        請將 <code>WRITE_URL</code> 替換為您自己的 Google Apps Script 網址。
+    </div>
+
+    <div class="header">
+        <div>
+            <h1>產科小工具 <small style="font-size:12px;color:#c2185b">Leo版</small></h1>
+            <div class="info-bar">
+                最後內診/更新：<span id="lastUpdate">2026/6/8 21:38:16</span>
+                <span id="syncStatus"><span class="sync-badge sync-off">僅讀取模式</span></span>
+            </div>
+            <div class="info-bar" id="archivedInfo" style="display:none; color:#9e9e9e;"></div>
+        </div>
+        <div class="btn-group">
+            <button id="mainEditBtn" class="btn-edit" onclick="toggleEditMode()">進入編輯</button>
+            <button id="refreshBtn" class="btn-refresh" onclick="handleRefresh()">刷新</button>
+        </div>
+    </div>
+
+    <button class="btn-add edit-only" onclick="addRow()">+ 新增產婦資料</button>
+    <button class="btn-clear edit-only" id="clearArchived" onclick="clearArchivedRows()" style="display:none">🗑 清除已出院記錄</button>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:62px">待產室</th>
+                    <th style="width:72px">姓名</th>
+                    <th style="width:52px">Para</th>
+                    <th style="width:42px">Dil</th>
+                    <th style="width:42px">Eff%</th>
+                    <th style="width:55px">Station</th>
+                    <th style="width:62px">VS</th>
+                    <th class="flag-col" title="Epidural analgesia">Epi</th>
+                    <th class="flag-col" title="Labor induction">Ind</th>
+                    <th class="flag-col" title="Premature rupture of membranes">PROM</th>
+                    <th class="col-simon display-only">Simon 預測 v1</th>
+                    <th class="col-leo   display-only">新版預測 v2</th>
+                    <th class="edit-only" style="width:50px">操作</th>
+                </tr>
+            </thead>
+            <tbody id="patientTableBody"><tr>
+                    <td>
+                        <span class="display-only">61</span>
+                        <input class="edit-only" type="text" value="61" oninput="updateField(0,&#39;room&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">許o涓 <span class="badge-new">新</span></span>
+                        <input class="edit-only" type="text" value="許o涓" oninput="updateField(0,&#39;name&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">G1P0</span>
+                        <input class="edit-only" type="text" value="G1P0" oninput="updateField(0,&#39;para&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">4</span>
+                        <input class="edit-only" type="number" step="0.5" value="4" oninput="updateField(0,&#39;dilation&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">60</span>
+                        <input class="edit-only" type="number" min="0" max="100" value="60" oninput="updateField(0,&#39;effacement&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">-3</span>
+                        <input class="edit-only" type="text" value="-3" oninput="updateField(0,&#39;station&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">柏</span>
+                        <input class="edit-only" type="text" value="柏" oninput="updateField(0,&#39;vs&#39;,this.value)">
+                    </td>
+                    <td class="flag-col">
+                        <span class="display-only">—</span>
+                        <input class="edit-only" type="checkbox" onchange="updateField(0,&#39;epidural&#39;,this.checked)">
+                    </td>
+                    <td class="flag-col">
+                        <span class="display-only">—</span>
+                        <input class="edit-only" type="checkbox" onchange="updateField(0,&#39;induction&#39;,this.checked)">
+                    </td>
+                    <td class="flag-col">
+                        <span class="display-only">—</span>
+                        <input class="edit-only" type="checkbox" onchange="updateField(0,&#39;prom&#39;,this.checked)">
+                    </td>
+                    <td class="col-simon display-only">(明) 14:18 (16.7h)</td>
+                    <td class="col-leo   display-only">(明) 07:18 (9.7h)</td>
+                    <td class="edit-only"><button class="btn-delete" onclick="deleteRow(0)">刪除</button></td>
+                </tr><tr>
+                    <td>
+                        <span class="display-only">62</span>
+                        <input class="edit-only" type="text" value="62" oninput="updateField(1,&#39;room&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">何o臻 <span class="badge-new">新</span></span>
+                        <input class="edit-only" type="text" value="何o臻" oninput="updateField(1,&#39;name&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">G1P0</span>
+                        <input class="edit-only" type="text" value="G1P0" oninput="updateField(1,&#39;para&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">10</span>
+                        <input class="edit-only" type="number" step="0.5" value="10" oninput="updateField(1,&#39;dilation&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">100</span>
+                        <input class="edit-only" type="number" min="0" max="100" value="100" oninput="updateField(1,&#39;effacement&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">0</span>
+                        <input class="edit-only" type="text" value="0" oninput="updateField(1,&#39;station&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">銘</span>
+                        <input class="edit-only" type="text" value="銘" oninput="updateField(1,&#39;vs&#39;,this.value)">
+                    </td>
+                    <td class="flag-col">
+                        <span class="display-only">—</span>
+                        <input class="edit-only" type="checkbox" onchange="updateField(1,&#39;epidural&#39;,this.checked)">
+                    </td>
+                    <td class="flag-col">
+                        <span class="display-only">—</span>
+                        <input class="edit-only" type="checkbox" onchange="updateField(1,&#39;induction&#39;,this.checked)">
+                    </td>
+                    <td class="flag-col">
+                        <span class="display-only">—</span>
+                        <input class="edit-only" type="checkbox" onchange="updateField(1,&#39;prom&#39;,this.checked)">
+                    </td>
+                    <td class="col-simon display-only">已全開</td>
+                    <td class="col-leo   display-only">已全開</td>
+                    <td class="edit-only"><button class="btn-delete" onclick="deleteRow(1)">刪除</button></td>
+                </tr><tr>
+                    <td>
+                        <span class="display-only">72</span>
+                        <input class="edit-only" type="text" value="72" oninput="updateField(2,&#39;room&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">楊o禎 <span class="badge-new">新</span></span>
+                        <input class="edit-only" type="text" value="楊o禎" oninput="updateField(2,&#39;name&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">G2P1</span>
+                        <input class="edit-only" type="text" value="G2P1" oninput="updateField(2,&#39;para&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">2</span>
+                        <input class="edit-only" type="number" step="0.5" value="2" oninput="updateField(2,&#39;dilation&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">30</span>
+                        <input class="edit-only" type="number" min="0" max="100" value="30" oninput="updateField(2,&#39;effacement&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">-3</span>
+                        <input class="edit-only" type="text" value="-3" oninput="updateField(2,&#39;station&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">文</span>
+                        <input class="edit-only" type="text" value="文" oninput="updateField(2,&#39;vs&#39;,this.value)">
+                    </td>
+                    <td class="flag-col">
+                        <span class="display-only">—</span>
+                        <input class="edit-only" type="checkbox" onchange="updateField(2,&#39;epidural&#39;,this.checked)">
+                    </td>
+                    <td class="flag-col">
+                        <span class="display-only">—</span>
+                        <input class="edit-only" type="checkbox" onchange="updateField(2,&#39;induction&#39;,this.checked)">
+                    </td>
+                    <td class="flag-col">
+                        <span class="display-only">—</span>
+                        <input class="edit-only" type="checkbox" onchange="updateField(2,&#39;prom&#39;,this.checked)">
+                    </td>
+                    <td class="col-simon display-only">(後) 00:18 (26.7h)</td>
+                    <td class="col-leo   display-only">(明) 07:49 (10.2h)</td>
+                    <td class="edit-only"><button class="btn-delete" onclick="deleteRow(2)">刪除</button></td>
+                </tr><tr>
+                    <td>
+                        <span class="display-only">81</span>
+                        <input class="edit-only" type="text" value="81" oninput="updateField(3,&#39;room&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">張o鈴 <span class="badge-new">新</span></span>
+                        <input class="edit-only" type="text" value="張o鈴" oninput="updateField(3,&#39;name&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">G1P0</span>
+                        <input class="edit-only" type="text" value="G1P0" oninput="updateField(3,&#39;para&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">2</span>
+                        <input class="edit-only" type="number" step="0.5" value="2" oninput="updateField(3,&#39;dilation&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">20</span>
+                        <input class="edit-only" type="number" min="0" max="100" value="20" oninput="updateField(3,&#39;effacement&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">-3</span>
+                        <input class="edit-only" type="text" value="-3" oninput="updateField(3,&#39;station&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">Su</span>
+                        <input class="edit-only" type="text" value="Su" oninput="updateField(3,&#39;vs&#39;,this.value)">
+                    </td>
+                    <td class="flag-col">
+                        <span class="display-only">—</span>
+                        <input class="edit-only" type="checkbox" onchange="updateField(3,&#39;epidural&#39;,this.checked)">
+                    </td>
+                    <td class="flag-col">
+                        <span class="display-only">—</span>
+                        <input class="edit-only" type="checkbox" onchange="updateField(3,&#39;induction&#39;,this.checked)">
+                    </td>
+                    <td class="flag-col">
+                        <span class="display-only">—</span>
+                        <input class="edit-only" type="checkbox" onchange="updateField(3,&#39;prom&#39;,this.checked)">
+                    </td>
+                    <td class="col-simon display-only">(6/12) 01:49 (76.2h)</td>
+                    <td class="col-leo   display-only">(明) 15:38 (18.0h)</td>
+                    <td class="edit-only"><button class="btn-delete" onclick="deleteRow(3)">刪除</button></td>
+                </tr><tr>
+                    <td>
+                        <span class="display-only">83</span>
+                        <input class="edit-only" type="text" value="83" oninput="updateField(4,&#39;room&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">李o萱 <span class="badge-new">新</span></span>
+                        <input class="edit-only" type="text" value="李o萱" oninput="updateField(4,&#39;name&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">G1P0</span>
+                        <input class="edit-only" type="text" value="G1P0" oninput="updateField(4,&#39;para&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">2</span>
+                        <input class="edit-only" type="number" step="0.5" value="2" oninput="updateField(4,&#39;dilation&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">20</span>
+                        <input class="edit-only" type="number" min="0" max="100" value="20" oninput="updateField(4,&#39;effacement&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">-3</span>
+                        <input class="edit-only" type="text" value="-3" oninput="updateField(4,&#39;station&#39;,this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">銘</span>
+                        <input class="edit-only" type="text" value="銘" oninput="updateField(4,&#39;vs&#39;,this.value)">
+                    </td>
+                    <td class="flag-col">
+                        <span class="display-only">—</span>
+                        <input class="edit-only" type="checkbox" onchange="updateField(4,&#39;epidural&#39;,this.checked)">
+                    </td>
+                    <td class="flag-col">
+                        <span class="display-only">—</span>
+                        <input class="edit-only" type="checkbox" onchange="updateField(4,&#39;induction&#39;,this.checked)">
+                    </td>
+                    <td class="flag-col">
+                        <span class="display-only">—</span>
+                        <input class="edit-only" type="checkbox" onchange="updateField(4,&#39;prom&#39;,this.checked)">
+                    </td>
+                    <td class="col-simon display-only">(6/12) 01:49 (76.2h)</td>
+                    <td class="col-leo   display-only">(明) 15:38 (18.0h)</td>
+                    <td class="edit-only"><button class="btn-delete" onclick="deleteRow(4)">刪除</button></td>
+                </tr></tbody>
+        </table>
+    </div>
+
+    <div class="legend">
+        <strong>🟣 Simon v1</strong>：原版 Friedman-based 公式（無 Epi/Ind/PROM）。
+        <strong>🔴 新版 v2</strong>：Zhang 2010 中位數 + ACOG 2024 三段式（含 Epi/Ind/PROM 調整）。
+        <strong>已出院</strong>：Simon 已從名單刪除，此處保留作歷史比對。
+    </div>
+
+    <div class="footer-info">
+        <p>原作：CM56 簡馳原 ｜ 演算法改進 + 同步介面：Leo</p>
+        <p>參考：Zhang et al. 2010 · ACOG CPG-8 2024 · Hamilton et al. AJOG 2024 · Huang et al. eClinicalMedicine 2025</p>
+        <p><a href="mailto:102768@tool.caaumed.org.tw">102768@tool.caaumed.org.tw</a></p>
+    </div>
+
+    <script>
+        // ─────────────────────────────────────────────────────────────────────
+        //  BACKEND URLS
+        //  READ_URL  → Simon's Google Apps Script (read-only, never POST here)
+        //  WRITE_URL → Your own Google Apps Script (read + write)
+        //              Replace "YOUR_GAS_URL_HERE" after you deploy your GAS.
+        // ─────────────────────────────────────────────────────────────────────
+        const READ_URL  = "https://script.google.com/macros/s/AKfycbx2JWTv0js2SU_qHEstb8wejZmty3Y68ptZ_iLu1tokfnlKygQykG-ORAQACAXZQYMsJw/exec";
+        const WRITE_URL = "https://script.google.com/macros/s/AKfycbwn342CjZa1ZPe2D1l2GMBvFWD2y5vXtz2PtqByhbMDmE8_RPI9OoAC_JEMEETMI7Mn/exec";
+
+        const HAS_OWN_BACKEND = !WRITE_URL.includes("YOUR_GAS_URL");
+
+        let patients     = [];   // merged patient list (Simon + local extras)
+        let rawUpdateStr = "";   // Simon's last-update timestamp
+        let isSaving     = false;
+
+        // ── Utilities ────────────────────────────────────────────────────────
+
+        function toggleLoading(show) {
+            document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none';
+        }
+
+        function parseToDate(s) {
+            if (!s || s === "無紀錄") return new Date();
+            if (s.toString().includes('T') && s.toString().includes('Z')) return new Date(s);
+            let n = s.replace(/-/g, '/').replace('T', ' ').replace(/\..*$/, '');
+            let d = new Date(n);
+            return isNaN(d.getTime()) ? new Date() : d;
+        }
+
+        function formatDisplayTime(d) {
+            if (!(d instanceof Date) || isNaN(d.getTime())) return "格式錯誤";
+            return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} `
+                 + `${String(d.getHours()).padStart(2,'0')}:`
+                 + `${String(d.getMinutes()).padStart(2,'0')}:`
+                 + `${String(d.getSeconds()).padStart(2,'0')}`;
+        }
+
+        const boolParse = v =>
+            v === true || v === 'Y' || v === 'y' || v === 'yes' || v === '1' || v === 'true';
+
+        // Stable key for patient identity across both backends
+        const patientKey = p =>
+            ((p.name || '') + '|' + (p.room || '')).trim().toLowerCase();
+
+        // ── Patient Merge ─────────────────────────────────────────────────────
+        //
+        //  Strategy:
+        //   1. Start from own saved patients (preserves extra fields + archived flags)
+        //   2. Overlay clinical updates from Simon's current list
+        //   3. Mark any patient absent from Simon's list as deletedBySimon = true
+        //   4. Add genuinely new patients from Simon that we've never seen
+        //
+        function mergePatients(simonList, myList) {
+            const myMap = new Map();
+            myList.forEach(p => myMap.set(patientKey(p), p));
+
+            const simonKeys = new Set(simonList.map(patientKey));
+
+            simonList.forEach(sp => {
+                const k = patientKey(sp);
+                if (myMap.has(k)) {
+                    // Update clinical fields from Simon; preserve our extra fields
+                    const mp = myMap.get(k);
+                    mp.room = sp.room; mp.name = sp.name; mp.para = sp.para;
+                    mp.dilation = sp.dilation; mp.effacement = sp.effacement;
+                    mp.station = sp.station; mp.vs = sp.vs;
+                    mp.deletedBySimon = false;
+                } else {
+                    // New patient we haven't seen before
+                    myMap.set(k, {
+                        ...sp,
+                        epidural: false, induction: false, prom: false,
+                        deletedBySimon: false, _new: true,
+                        assessedAt: new Date().toISOString()
+                    });
+                }
+            });
+
+            // Mark patients Simon has removed
+            myList.forEach(p => {
+                if (!simonKeys.has(patientKey(p))) {
+                    p.deletedBySimon = true;
+                }
+            });
+
+            // Active patients first, archived at bottom
+            const result = Array.from(myMap.values());
+            result.sort((a, b) => {
+                if (!!a.deletedBySimon === !!b.deletedBySimon) return 0;
+                return a.deletedBySimon ? 1 : -1;
+            });
+
+            return result;
+        }
+
+        // ── Load & Sync ───────────────────────────────────────────────────────
+
+        async function loadData() {
+            if (isSaving) return;
+            toggleLoading(true);
+
+            try {
+                // Always read Simon's current data
+                const simonResp = await fetch(`${READ_URL}?t=${Date.now()}`);
+                const simonData = await simonResp.json();
+                const simonPatients = simonData.patients || [];
+                rawUpdateStr = simonData.lastUpdate || "無紀錄";
+
+                // Read our own saved data (if backend is configured)
+                let myPatients = [];
+                if (HAS_OWN_BACKEND) {
+                    try {
+                        const myResp = await fetch(`${WRITE_URL}?t=${Date.now()}`);
+                        const myData = await myResp.json();
+                        myPatients = myData.patients || [];
+                    } catch (e) {
+                        console.log("Own backend empty or unreachable, bootstrapping from Simon");
+                    }
+                }
+
+                patients = mergePatients(simonPatients, myPatients);
+
+                // Silently persist the merged state so archived flags survive page reloads
+                if (HAS_OWN_BACKEND) silentSave();
+
+                renderTable();
+                updateSyncStatus(true);
+
+            } catch (e) {
+                console.error("載入失敗:", e);
+                updateSyncStatus(false);
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
+        async function silentSave() {
+            if (!HAS_OWN_BACKEND || isSaving) return;
+            try {
+                await fetch(WRITE_URL, {
+                    method: "POST",
+                    body: JSON.stringify({ patients, lastUpdate: formatDisplayTime(new Date()) })
+                });
+            } catch (e) {
+                console.log("Silent save failed:", e);
+            }
+        }
+
+        function updateSyncStatus(ok) {
+            const el = document.getElementById('syncStatus');
+            if (!HAS_OWN_BACKEND) {
+                el.innerHTML = '<span class="sync-badge sync-off">僅讀取模式</span>';
+                document.getElementById('setupNotice').style.display = 'block';
+            } else if (ok) {
+                el.innerHTML = '<span class="sync-badge sync-ok">✓ 已同步</span>';
+                document.getElementById('setupNotice').style.display = 'none';
+            } else {
+                el.innerHTML = '<span class="sync-badge sync-warn">⚠ 同步失敗</span>';
+            }
+        }
+
+        // ── PREDICTION ENGINE: Simon v1 (original formula) ────────────────────
+        //
+        //  Preserved exactly as published at simonjian2003.github.io/ob-tools
+        //  (Friedman-inspired piecewise, no intervention adjustments)
+        //
+        function simonEstimate(p) {
+            const dil     = parseFloat(p.dilation);
+            const eff     = parseFloat(p.effacement) || 0;
+            const station = parseFloat(p.station) || 0;
+            const paraStr = p.para ? p.para.toString().toLowerCase() : '';
+
+            if (isNaN(dil) || dil < 0) return "--:--";
+            if (dil >= 10) return "已全開";
+
+            const isMultipara = !(paraStr.includes('p0') || paraStr === '0');
+            const latentRate  = isMultipara ? 0.8 : 0.4;
+            const activeRate  = isMultipara ? 2.0 : 1.2;
+            let totalHours = 0;
+
+            if (dil < 6) {
+                let effFactor = eff / 100;
+                if (effFactor < 0.2) effFactor = 0.2;
+                totalHours += (6 - dil) / (latentRate * effFactor);
+                totalHours += 4 / activeRate;
+            } else {
+                totalHours += (10 - dil) / (activeRate * 1.3);
+            }
+
+            const stationBonus = 1 + (station * 0.1);
+            totalHours = totalHours / stationBonus;
+            if (totalHours < 0.33) totalHours = 0.33;
+
+            return formatEstimate(totalHours, p.assessedAt);
+        }
+
+        // ── PREDICTION ENGINE: Leo v2 (improved, evidence-based) ─────────────
+        //
+        //  Three-segment piecewise model:
+        //    T_total = T_latent + T_active + T_2nd_stage
+        //
+        //  Sources:
+        //    • Zhang et al. 2010  – median dilation rates by parity
+        //    • ACOG CPG-8 2024    – 6 cm active phase definition, epidural 2nd-stage
+        //                           effect, induction latent-phase prolongation
+        //    • Hamilton et al. AJOG 2024  – induction & epidural highest-importance
+        //                                   variables in multifactor ML model
+        //    • Huang et al. eClinicalMedicine 2025 – PROM OR 1.44 (≥1h 2nd stage),
+        //                                             epidural OR 1.80
+        //
+        function leoEstimate(p) {
+            const dil     = parseFloat(p.dilation);
+            const eff     = parseFloat(p.effacement) || 0;
+            const station = parseFloat(p.station) || 0;
+            const paraStr = p.para ? p.para.toString().toLowerCase().trim() : '';
+
+            const hasEpidural  = boolParse(p.epidural);
+            const hasInduction = boolParse(p.induction);
+            const hasPROM      = boolParse(p.prom);
+
+            if (isNaN(dil) || dil < 0) return "--:--";
+            if (dil >= 10) return "已全開";
+
+            // Parity: catches P0, G1P0, Para 0, para0, nullipara, etc.
+            const isMultipara = !(
+                paraStr === '0' ||
+                /p\s*0/.test(paraStr) ||
+                /para\s*0/.test(paraStr) ||
+                paraStr === 'nullipara' ||
+                paraStr === 'primipara'
+            );
+
+            // Zhang 2010 median rates (cm/h)
+            const R_L = isMultipara ? 0.8 : 0.5;
+            const R_A = isMultipara ? 2.5 : 1.5;
+
+            // Effacement factor [0.5, 1.0] — prevents extreme latent estimates
+            const effFactor = 0.5 + 0.5 * (Math.min(100, Math.max(0, eff)) / 100);
+
+            // Station multiplier [0.5, 1.5]
+            const stationMult = Math.max(0.5, Math.min(1.5, 1 + station * 0.1));
+
+            let latentH = 0, activeH = 0;
+
+            if (dil < 6) {
+                let lh = (6 - dil) / (R_L * effFactor);
+                if (hasInduction) lh *= 1.4;   // ACOG: latent phase "significantly longer"
+                if (hasPROM)      lh *= 0.9;   // direct head pressure accelerates dilation
+                latentH = lh;
+
+                let ah = (4 / R_A) / stationMult;
+                if (hasPROM) ah *= 0.9;
+                activeH = ah;
+            } else {
+                let ah = ((10 - dil) / R_A) / stationMult;
+                if (hasPROM) ah *= 0.9;
+                activeH = ah;
+            }
+
+            // 2nd stage medians (Zhang/ACOG Table 1)
+            let s2h = isMultipara
+                ? (hasEpidural ? 0.35 : 0.15)
+                : (hasEpidural ? 1.1  : 0.6);
+            s2h = s2h / stationMult;
+            if (hasPROM) s2h *= 1.15;  // Huang et al. 2025: OR 1.44 → ~1.15 time adj.
+
+            const total = Math.max(0.25, latentH + activeH + s2h);
+
+            // Append intervention badges
+            const flags = [
+                hasEpidural  ? '<span class="flag-badge flag-epi">Epi</span>'   : '',
+                hasInduction ? '<span class="flag-badge flag-ind">Ind</span>'   : '',
+                hasPROM      ? '<span class="flag-badge flag-prom">PROM</span>' : '',
+            ].join('');
+
+            return formatEstimate(total, p.assessedAt) + (flags ? `<br><small>${flags}</small>` : '');
+        }
+
+        // Shared formatter: hours → HH:MM (today/明/後/date) + (Xh)
+        // refStr: per-patient assessedAt ISO string (falls back to rawUpdateStr)
+        function formatEstimate(totalHours, refStr) {
+            const ref    = parseToDate(refStr || rawUpdateStr);
+            const estDate = new Date(ref.getTime() + totalHours * 3600000);
+
+            const refDay = new Date(ref);     refDay.setHours(0,0,0,0);
+            const estDay = new Date(estDate); estDay.setHours(0,0,0,0);
+            const diff   = Math.round((estDay - refDay) / 86400000);
+
+            let label = '';
+            if      (diff === 1) label = '(明) ';
+            else if (diff === 2) label = '(後) ';
+            else if (diff  >  2) label = `(${estDate.getMonth()+1}/${estDate.getDate()}) `;
+
+            return `${label}${String(estDate.getHours()).padStart(2,'0')}:${String(estDate.getMinutes()).padStart(2,'0')} (${totalHours.toFixed(1)}h)`;
+        }
+
+        // ── Render ────────────────────────────────────────────────────────────
+
+        function renderTable() {
+            const tbody = document.getElementById('patientTableBody');
+            document.getElementById('lastUpdate').innerText =
+                rawUpdateStr === "無紀錄" ? "無紀錄" : formatDisplayTime(parseToDate(rawUpdateStr));
+
+            // Archived row count
+            const archivedCount = patients.filter(p => p.deletedBySimon).length;
+            const archivedInfo  = document.getElementById('archivedInfo');
+            if (archivedCount > 0) {
+                archivedInfo.style.display = 'block';
+                archivedInfo.innerText = `📁 已出院保留記錄：${archivedCount} 筆`;
+                document.getElementById('clearArchived').style.display = 'block';
+            } else {
+                archivedInfo.style.display = 'none';
+                document.getElementById('clearArchived').style.display = 'none';
+            }
+
+            tbody.innerHTML = '';
+            const val = v => (v === null || v === undefined || v === '') ? '' : v;
+
+            patients.forEach((p, i) => {
+                const tr = document.createElement('tr');
+                const isArchived = !!p.deletedBySimon;
+                const isNew      = !!p._new;
+
+                if (isArchived) tr.classList.add('archived-row');
+
+                const nameDisplay = isArchived
+                    ? `${val(p.name)} <span class="badge-archived">已出院</span>`
+                    : (isNew ? `${val(p.name)} <span class="badge-new">新</span>` : val(p.name));
+
+                tr.innerHTML = `
+                    <td>
+                        <span class="display-only">${val(p.room)}</span>
+                        <input class="edit-only" type="text" value="${val(p.room)}" oninput="updateField(${i},'room',this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">${nameDisplay}</span>
+                        <input class="edit-only" type="text" value="${val(p.name)}" oninput="updateField(${i},'name',this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">${val(p.para)}</span>
+                        <input class="edit-only" type="text" value="${val(p.para)}" oninput="updateField(${i},'para',this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">${val(p.dilation)}</span>
+                        <input class="edit-only" type="number" step="0.5" value="${val(p.dilation)}" oninput="updateField(${i},'dilation',this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">${val(p.effacement)}</span>
+                        <input class="edit-only" type="number" min="0" max="100" value="${val(p.effacement)}" oninput="updateField(${i},'effacement',this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">${val(p.station)}</span>
+                        <input class="edit-only" type="text" value="${val(p.station)}" oninput="updateField(${i},'station',this.value)">
+                    </td>
+                    <td>
+                        <span class="display-only">${val(p.vs)}</span>
+                        <input class="edit-only" type="text" value="${val(p.vs)}" oninput="updateField(${i},'vs',this.value)">
+                    </td>
+                    <td class="flag-col">
+                        <span class="display-only">${boolParse(p.epidural) ? '<span class="flag-badge flag-epi">Y</span>' : '—'}</span>
+                        <input class="edit-only" type="checkbox" ${boolParse(p.epidural) ? 'checked' : ''} onchange="updateField(${i},'epidural',this.checked)">
+                    </td>
+                    <td class="flag-col">
+                        <span class="display-only">${boolParse(p.induction) ? '<span class="flag-badge flag-ind">Y</span>' : '—'}</span>
+                        <input class="edit-only" type="checkbox" ${boolParse(p.induction) ? 'checked' : ''} onchange="updateField(${i},'induction',this.checked)">
+                    </td>
+                    <td class="flag-col">
+                        <span class="display-only">${boolParse(p.prom) ? '<span class="flag-badge flag-prom">Y</span>' : '—'}</span>
+                        <input class="edit-only" type="checkbox" ${boolParse(p.prom) ? 'checked' : ''} onchange="updateField(${i},'prom',this.checked)">
+                    </td>
+                    <td class="col-simon display-only">${isArchived ? '<span style="color:#ccc">—</span>' : simonEstimate(p)}</td>
+                    <td class="col-leo   display-only">${leoEstimate(p)}</td>
+                    <td class="edit-only"><button class="btn-delete" onclick="deleteRow(${i})">刪除</button></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // ── Edit & Save ───────────────────────────────────────────────────────
+
+        function updateField(index, field, value) {
+            patients[index][field] = value;
+            // Live-update prediction cells without full re-render
+            const rows = document.getElementById('patientTableBody').querySelectorAll('tr');
+            if (rows[index]) {
+                const simonCell = rows[index].querySelector('.col-simon');
+                const leoCell   = rows[index].querySelector('.col-leo');
+                if (simonCell) simonCell.innerHTML = patients[index].deletedBySimon ? '<span style="color:#ccc">—</span>' : simonEstimate(patients[index]);
+                if (leoCell)   leoCell.innerHTML   = leoEstimate(patients[index]);
+            }
+        }
+
+        async function saveToCloud() {
+            if (isSaving) return;
+            if (!HAS_OWN_BACKEND) {
+                alert("請先設定您自己的後端 URL（WRITE_URL），否則無法儲存。");
+                return;
+            }
+
+            isSaving = true;
+            toggleLoading(true);
+
+            try {
+                await fetch(WRITE_URL, {
+                    method: "POST",
+                    body: JSON.stringify({ patients, lastUpdate: formatDisplayTime(new Date()) })
+                });
+                await new Promise(r => setTimeout(r, 600));
+                isSaving = false;
+                await loadData();
+                alert("雲端同步成功！");
+            } catch (e) {
+                console.error("同步失敗:", e);
+                isSaving = false;
+                alert("同步失敗，建議手動刷新頁面");
+            } finally {
+                toggleLoading(false);
+            }
+        }
+
+        function clearArchivedRows() {
+            if (!confirm("確定清除所有已出院記錄？此操作將從您的名單中永久移除。")) return;
+            patients = patients.filter(p => !p.deletedBySimon);
+            renderTable();
+            if (HAS_OWN_BACKEND) silentSave();
+        }
+
+        function addRow() {
+            patients.unshift({
+                room: '', name: '', para: '', dilation: '', effacement: '',
+                station: '', vs: '', epidural: false, induction: false, prom: false,
+                deletedBySimon: false, assessedAt: new Date().toISOString()
+            });
+            renderTable();
+        }
+
+        function deleteRow(index) {
+            if (confirm("確定刪除？")) {
+                patients.splice(index, 1);
+                renderTable();
+            }
+        }
+
+        function handleRefresh() {
+            const isEditing = document.getElementById('mainBody').classList.contains('edit-mode');
+            if (isEditing) {
+                if (confirm("確定取消編輯？資料將回復至上次儲存狀態。")) {
+                    document.getElementById('mainBody').classList.remove('edit-mode');
+                    document.getElementById('mainEditBtn').innerText = "進入編輯";
+                    document.getElementById('refreshBtn').innerText = "刷新";
+                    loadData();
+                }
+            } else {
+                loadData();
+            }
+        }
+
+        function toggleEditMode() {
+            const body     = document.getElementById('mainBody');
+            const editBtn  = document.getElementById('mainEditBtn');
+            const refreshBtn = document.getElementById('refreshBtn');
+            if (body.classList.contains('edit-mode')) {
+                body.classList.remove('edit-mode');
+                editBtn.innerText = "進入編輯";
+                refreshBtn.innerText = "刷新";
+                saveToCloud();
+            } else {
+                body.classList.add('edit-mode');
+                editBtn.innerText = "完成儲存";
+                refreshBtn.innerText = "取消編輯";
+            }
+        }
+
+        // ── Boot ──────────────────────────────────────────────────────────────
+        if (!HAS_OWN_BACKEND) updateSyncStatus(false);
+        loadData();
+    </script>
+
+
+</body></html>
