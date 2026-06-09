@@ -538,6 +538,8 @@
                 }
 
                 patients = mergePatients(simonPatients, myPatients);
+                // Lock each patient's prediction reference to last known assessment time
+                patients.forEach(p => { p.assessedAt = resolveAssessedAt(p); });
 
                 // Silently persist the merged state so archived flags survive page reloads
                 if (HAS_OWN_BACKEND) silentSave();
@@ -775,6 +777,20 @@
         }
 
         function autoSnapshot() { patients.forEach(p => takeSnapshot(p)); }
+
+        // Return the timestamp the main table should use as prediction reference.
+        // Reuses the last snapshot's time when clinical data is unchanged,
+        // so main table and history panel always show the same predicted time.
+        function resolveAssessedAt(p) {
+            const snaps = allSnapshots();
+            const k = patientKey(p);
+            const data = snaps[k];
+            if (!data || data.history.length === 0) return new Date().toISOString();
+            const last = data.history[data.history.length - 1];
+            const unchanged = ['dilation','effacement','station','epidural','induction','prom']
+                .every(f => String(p[f]) === String(last[f]));
+            return unchanged ? last.time : new Date().toISOString();
+        }
 
         function setActualLaborTime(k, value) {
             const snaps = allSnapshots();
