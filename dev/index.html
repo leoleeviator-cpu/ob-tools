@@ -57,10 +57,11 @@
         .col-leo   { background-color: #fff0f5; color: var(--accent-color); font-weight: bold; min-width: 145px; font-size: 11px; }
         .col-v3    { background-color: #e8f5e9; color: #1b5e20; font-weight: bold; min-width: 145px; font-size: 11px; }
         .col-v4    { background-color: #e0f2f1; color: #00695c; font-weight: bold; min-width: 150px; font-size: 11px; }
-        th.col-simon { background-color: #9c27b0; }
-        th.col-leo   { background-color: #e91e63; }
-        th.col-v3    { background-color: #2e7d32; }
-        th.col-v4    { background-color: #00897b; }
+        /* Prediction-column HEADERS: strong, distinct, high-contrast */
+        th.col-simon { background-color: #6a1b9a; color: #fff; }
+        th.col-leo   { background-color: #ad1457; color: #fff; }
+        th.col-v3    { background-color: #1b5e20; color: #fff; }
+        th.col-v4    { background-color: #004d40; color: #fff; border-bottom: 3px solid #ffca28; }
 
         .flag-col { width: 36px; }
 
@@ -152,7 +153,7 @@
 
     <div class="header">
         <div>
-            <h1>產科小工具 <small style="font-size:12px;color:#c2185b">Leo版</small></h1>
+            <h1>新產科小工具</h1>
             <div class="info-bar">
                 最後內診/更新：<span id="lastUpdate">2026/6/8 21:38:16</span>
                 <span id="syncStatus"><span class="sync-badge sync-off">僅讀取模式</span></span>
@@ -162,8 +163,16 @@
         <div class="btn-group">
             <button id="mainEditBtn" class="btn-edit" onclick="toggleEditMode()">進入編輯</button>
             <button id="refreshBtn" class="btn-refresh" onclick="handleRefresh()">刷新</button>
-            <button id="exportCsvBtn" class="btn-export" onclick="exportData('csv')" title="匯出所有評估記錄與實際分娩時間 (CSV)">📥 匯出 CSV</button>
-            <button id="exportJsonBtn" class="btn-export" onclick="exportData('json')" title="匯出原始資料 (JSON)">📥 JSON</button>
+            <button id="debugBtn" class="btn-export" onclick="toggleDebugPanel()" title="開發者工具：匯出記錄資料">🛠 Backend Debug</button>
+        </div>
+    </div>
+
+    <div id="debugPanel" style="display:none; margin:0 0 10px; padding:10px 14px; background:#eceff1; border:1px solid #b0bec5; border-radius:6px; font-size:12px; color:#37474f;">
+        <strong>🛠 Backend Debug</strong>
+        <span id="debugStats" style="margin-left:8px; color:#607d8b;"></span>
+        <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="btn-export" onclick="exportData('csv')" title="匯出所有評估記錄與實際分娩時間 (CSV)">📥 匯出 CSV</button>
+            <button class="btn-export" onclick="exportData('json')" title="匯出原始資料 (JSON)">📥 匯出 JSON</button>
         </div>
     </div>
 
@@ -422,13 +431,14 @@
         <strong>🔵 實證 v4 ★</strong>：以兩批共 15 名產婦、153 筆內診實測資料重新擬合
         （留一交叉驗證 MAE 4.3 小時、偏差 +0.2 小時；RMSE 最低、各族群偏差最平衡，為目前建議值）。
         子宮頸 ≥3 公分後誤差約 1.5–2 小時，潛伏期（&lt;3 公分）變異大，請以區間參考。
-        <strong>已出院</strong>：Simon 已從名單刪除，此處保留作歷史比對。
+        <strong>已出院</strong>：記錄人員已從名單刪除，此處保留作歷史比對。
     </div>
 
     <div class="footer-info">
-        <p>原作：CM56 簡馳原 ｜ 演算法改進 + 同步介面：Leo</p>
+        <p>原作：CM56 簡馳原 ｜ 演算法改進 + 同步介面：M64 李育德</p>
         <p>參考：Zhang et al. 2010 · ACOG CPG-8 2024 · Hamilton et al. AJOG 2024 · Huang et al. eClinicalMedicine 2025</p>
         <p><a href="mailto:102768@tool.caaumed.org.tw">102768@tool.caaumed.org.tw</a></p>
+        <p><a href="mailto:102703@tool.caaumed.org.tw">102703@tool.caaumed.org.tw</a></p>
     </div>
 
     <script>
@@ -928,6 +938,18 @@
             document.body.appendChild(a); a.click();
             document.body.removeChild(a);
             setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+
+        function toggleDebugPanel() {
+            const panel = document.getElementById('debugPanel');
+            const show  = panel.style.display === 'none' || panel.style.display === '';
+            panel.style.display = show ? 'block' : 'none';
+            if (show) {
+                const rows = buildExportRows();
+                const withActual = rows.filter(r => r.actual_ttb_h !== '').length;
+                document.getElementById('debugStats').innerText =
+                    `共 ${rows.length} 筆評估記錄，其中 ${withActual} 筆已有實際分娩時間`;
+            }
         }
 
         function exportData(fmt) {
