@@ -174,7 +174,7 @@
         <div class="btn-group">
             <button id="mainEditBtn" class="btn-edit" onclick="toggleEditMode()">進入編輯</button>
             <button id="refreshBtn" class="btn-refresh" onclick="handleRefresh()">刷新</button>
-            <button id="debugBtn" class="btn-export" onclick="toggleDebugPanel()" title="開發者工具：匯出記錄資料">🛠</button>
+            <button id="debugBtn" class="btn-export" onclick="toggleDebugPanel()" title="🔒 管理者工具（需登入）：匯出記錄資料">🛠</button>
         </div>
     </div>
 
@@ -184,6 +184,7 @@
         <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
             <button class="btn-export" onclick="exportData('csv')" title="匯出所有評估記錄 (CSV)">📥 匯出 CSV</button>
             <button class="btn-export" onclick="exportData('json')" title="匯出原始資料 (JSON)">📥 匯出 JSON</button>
+            <button class="btn-refresh" onclick="adminSignOut()" title="登出管理者帳號">登出管理</button>
         </div>
     </div>
 
@@ -496,6 +497,11 @@
         let CLOUD  = false;          // true once Firestore is reachable
         let cloudCache = {};         // in-memory mirror of Firestore patient docs
 
+        // Admin gate for the 🛠 debug/export panel (the rest of the tool is open).
+        // Add a colleague's Google email here to grant them export access.
+        const ADMIN_EMAILS = ['leoleeviator@gmail.com'];
+        let isAdmin = false;
+
         function initFirebase() {
             if (typeof firebase === 'undefined') {
                 console.warn('Firebase SDK not loaded — running in local-only mode');
@@ -518,6 +524,7 @@
 
         async function onAuthChanged(user) {
             if (user) {
+                isAdmin = !user.isAnonymous && ADMIN_EMAILS.includes(user.email || '');
                 try {
                     await loadCloudSnapshots();
                     CLOUD = true;
@@ -529,6 +536,7 @@
                 }
             } else {
                 CLOUD = false;
+                isAdmin = false;
             }
             updateCloudBadge();
         }
@@ -539,6 +547,36 @@
             badge.innerHTML = CLOUD
                 ? '<span class="sync-badge sync-ok">☁ 雲端同步</span>'
                 : '<span class="sync-badge sync-off">本機記錄</span>';
+        }
+
+        // ── Admin gate (Google sign-in) for the debug/export panel ────────────
+        async function adminSignIn() {
+            if (!fbAuth) { alert('雲端服務尚未就緒，請稍後再試。'); return false; }
+            try {
+                const provider = new firebase.auth.GoogleAuthProvider();
+                const res = await fbAuth.signInWithPopup(provider);
+                const email = res.user && res.user.email;
+                if (ADMIN_EMAILS.includes(email)) { isAdmin = true; return true; }
+                alert('此帳號無管理權限：' + (email || '未知'));
+                await fbAuth.signOut();
+                await fbAuth.signInAnonymously().catch(() => {});
+                return false;
+            } catch (e) {
+                console.error('Admin sign-in failed', e);
+                if (e && e.code === 'auth/unauthorized-domain') {
+                    alert('此網域未授權登入，請於正式網站 obtools.web.app 使用管理功能。');
+                } else if (e && e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
+                    alert('登入失敗：' + (e.message || e));
+                }
+                return false;
+            }
+        }
+
+        async function adminSignOut() {
+            isAdmin = false;
+            const panel = document.getElementById('debugPanel');
+            if (panel) panel.style.display = 'none';
+            try { await fbAuth.signOut(); await fbAuth.signInAnonymously(); } catch (e) {}
         }
 
         // Firestore doc IDs can't contain '/'; sanitize the patientKey.
@@ -1072,17 +1110,23 @@
             setTimeout(() => URL.revokeObjectURL(url), 1000);
         }
 
-        function toggleDebugPanel() {
+        async function toggleDebugPanel() {
             const panel = document.getElementById('debugPanel');
-            const show  = panel.style.display === 'none' || panel.style.display === '';
-            panel.style.display = show ? 'block' : 'none';
-            if (show) {
-                const rows = buildExportRows();
-                const nPatients = new Set(rows.map(r => r.name + '|' + r.room)).size;
-                const mode = CLOUD ? '☁ 雲端' : '本機';
-                document.getElementById('debugStats').innerText =
-                    `共 ${rows.length} 筆評估記錄、${nPatients} 位產婦（${mode}）`;
+            const isOpen = panel.style.display === 'block';
+            if (isOpen) { panel.style.display = 'none'; return; }
+
+            // Require admin sign-in before opening the export panel
+            if (!isAdmin) {
+                const ok = await adminSignIn();
+                if (!ok) return;
             }
+            panel.style.display = 'block';
+            const rows = buildExportRows();
+            const nPatients = new Set(rows.map(r => r.name + '|' + r.room)).size;
+            const mode = CLOUD ? '☁ 雲端' : '本機';
+            const who  = (fbAuth && fbAuth.currentUser && fbAuth.currentUser.email) || '';
+            document.getElementById('debugStats').innerText =
+                `共 ${rows.length} 筆評估記錄、${nPatients} 位產婦（${mode}）` + (who ? ` ｜ ${who}` : '');
         }
 
         function exportData(fmt) {
