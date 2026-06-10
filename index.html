@@ -1038,11 +1038,7 @@
             const last = data.history[data.history.length - 1];
 
             // Skip if nothing clinically changed since last snapshot
-            if (last) {
-                const unchanged = ['dilation','effacement','station','epidural','induction','prom']
-                    .every(f => String(p[f]) === String(last[f]));
-                if (unchanged) return;
-            }
+            if (last && clinicalSig(p) === clinicalSig(last)) return;
 
             // Assessment timestamp = Simon's last-update (最後內診) time — when
             // the clinical data actually changed, not the page-load time.
@@ -1079,6 +1075,21 @@
 
         function autoSnapshot() { patients.forEach(p => takeSnapshot(p)); }
 
+        // Canonical signature of a patient's clinical state. Normalizes across
+        // storage quirks (boolean false vs undefined vs 'N', number vs string)
+        // so "did the data really change?" is decided consistently everywhere.
+        // Without this, a format mismatch falsely reads as a change and the
+        // estimate re-anchors to the (drifting) global 最後內診 time on every refresh.
+        function clinicalSig(o) {
+            const n = v => (v === null || v === undefined) ? '' : String(v).trim();
+            return [
+                n(o.dilation), n(o.effacement), n(o.station),
+                boolParse(o.epidural)  ? '1' : '0',
+                boolParse(o.induction) ? '1' : '0',
+                boolParse(o.prom)      ? '1' : '0'
+            ].join('|');
+        }
+
         // Return the timestamp the main table should use as prediction reference.
         // Reuses the last snapshot's time when clinical data is unchanged,
         // so main table and history panel always show the same predicted time.
@@ -1088,9 +1099,11 @@
             const data = snaps[k];
             if (!data || data.history.length === 0) return parseToDate(rawUpdateStr).toISOString();
             const last = data.history[data.history.length - 1];
-            const unchanged = ['dilation','effacement','station','epidural','induction','prom']
-                .every(f => String(p[f]) === String(last[f]));
-            return unchanged ? last.time : parseToDate(rawUpdateStr).toISOString();
+            // Unchanged data → keep the original anchor time (stable across Simon
+            // refreshes). Only a real clinical change re-anchors to the new exam time.
+            return clinicalSig(p) === clinicalSig(last)
+                ? last.time
+                : parseToDate(rawUpdateStr).toISOString();
         }
 
         // ── Export tracked data ───────────────────────────────────────────────
