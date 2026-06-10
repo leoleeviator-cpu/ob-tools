@@ -184,6 +184,7 @@
         <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
             <button class="btn-export" onclick="exportData('csv')" title="匯出所有評估記錄 (CSV)">📥 匯出 CSV</button>
             <button class="btn-export" onclick="exportData('json')" title="匯出原始資料 (JSON)">📥 匯出 JSON</button>
+            <button class="btn-delete" onclick="clearCloudRecords()" title="清除所有評估記錄（雲端＋本機）" style="padding:8px 12px;font-size:13px;border-radius:6px;">🗑 清除記錄</button>
             <button class="btn-refresh" onclick="adminSignOut()" title="登出管理者帳號">登出管理</button>
         </div>
     </div>
@@ -577,6 +578,27 @@
             const panel = document.getElementById('debugPanel');
             if (panel) panel.style.display = 'none';
             try { await fbAuth.signOut(); await fbAuth.signInAnonymously(); } catch (e) {}
+        }
+
+        // Admin-only: wipe all stored tracking records (cloud + local). Useful to
+        // reset test data before real use. Irreversible.
+        async function clearCloudRecords() {
+            if (!isAdmin) { alert('需管理者權限。'); return; }
+            if (!confirm('確定清除所有評估記錄（雲端 + 本機）？此操作無法復原。')) return;
+            try {
+                if (CLOUD && fbDb) {
+                    const snap = await fbDb.collection('patients').get();
+                    await Promise.all(snap.docs.map(d => d.ref.delete()));
+                }
+                cloudCache = {};
+                memSnaps   = {};
+                localStorage.removeItem(SNAP_KEY);
+                renderTable();
+                alert('已清除所有評估記錄。');
+            } catch (e) {
+                console.error('Clear failed', e);
+                alert('清除失敗：' + (e.message || e));
+            }
         }
 
         // Firestore doc IDs can't contain '/'; sanitize the patientKey.
@@ -1022,8 +1044,8 @@
                 if (unchanged) return;
             }
 
-            // Use Simon's last-update time as the assessment timestamp,
-            // not the page-load time — this reflects when the data actually changed.
+            // Assessment timestamp = Simon's last-update (最後內診) time — when
+            // the clinical data actually changed, not the page-load time.
             const now = parseToDate(rawUpdateStr).toISOString();
             const ref = parseToDate(rawUpdateStr);
             const sh  = simonHours(p);
@@ -1032,7 +1054,7 @@
             const v4h = leoV4Hours(p);
             const abs = h => (h && h > 0) ? new Date(ref.getTime() + h * 3600000).toISOString() : null;
 
-            data.history.push({
+            const newSnap = {
                 time:         now,
                 dilation:     p.dilation,   effacement: p.effacement,
                 station:      p.station,    epidural:   p.epidural,
@@ -1041,7 +1063,16 @@
                 leoHours:     lh,  leoAbsTime:   abs(lh),
                 v3Hours:      vh,  v3AbsTime:    abs(vh),
                 v4Hours:      v4h, v4AbsTime:    abs(v4h),
-            });
+            };
+
+            // One row per exam time: if 最後內診 time hasn't advanced since the last
+            // snapshot, this is a correction to the SAME exam — update in place.
+            // A genuinely new exam (time advanced) appends a new row.
+            if (last && last.time === now) {
+                data.history[data.history.length - 1] = newSnap;
+            } else {
+                data.history.push(newSnap);
+            }
 
             persistPatient(k);
         }
