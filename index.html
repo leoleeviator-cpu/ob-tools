@@ -3,7 +3,7 @@
 <html lang="zh-TW"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
     
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>產科小工具 (Leo版)</title>
+    <title>新產科小工具</title>
     <style>
         :root {
             --primary-color: #f06292;
@@ -167,13 +167,14 @@
             <div class="info-bar">
                 最後內診/更新：<span id="lastUpdate">2026/6/8 21:38:16</span>
                 <span id="syncStatus"><span class="sync-badge sync-off">僅讀取模式</span></span>
+                <span id="cloudBadge"><span class="sync-badge sync-off">本機記錄</span></span>
             </div>
             <div class="info-bar" id="archivedInfo" style="display:none; color:#9e9e9e;"></div>
         </div>
         <div class="btn-group">
             <button id="mainEditBtn" class="btn-edit" onclick="toggleEditMode()">進入編輯</button>
             <button id="refreshBtn" class="btn-refresh" onclick="handleRefresh()">刷新</button>
-            <button id="debugBtn" class="btn-export" onclick="toggleDebugPanel()" title="開發者工具：匯出記錄資料">🛠</button>
+            <button id="debugBtn" class="btn-export" onclick="toggleDebugPanel()" title="🔒 管理者工具（需登入）：匯出記錄資料">🛠</button>
         </div>
     </div>
 
@@ -181,8 +182,9 @@
         <strong>🛠 Backend Debug</strong>
         <span id="debugStats" style="margin-left:8px; color:#607d8b;"></span>
         <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
-            <button class="btn-export" onclick="exportData('csv')" title="匯出所有評估記錄與實際分娩時間 (CSV)">📥 匯出 CSV</button>
+            <button class="btn-export" onclick="exportData('csv')" title="匯出所有評估記錄 (CSV)">📥 匯出 CSV</button>
             <button class="btn-export" onclick="exportData('json')" title="匯出原始資料 (JSON)">📥 匯出 JSON</button>
+            <button class="btn-refresh" onclick="adminSignOut()" title="登出管理者帳號">登出管理</button>
         </div>
     </div>
 
@@ -452,6 +454,11 @@
         <p><a href="mailto:102768@tool.caaumed.org.tw">102768@tool.caaumed.org.tw</a> ｜ <a href="mailto:102703@tool.caaumed.org.tw">102703@tool.caaumed.org.tw</a></p>
     </div>
 
+    <!-- Firebase SDK (compat build — exposes global `firebase`, works with inline handlers) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
     <script>
         // ─────────────────────────────────────────────────────────────────────
         //  BACKEND URLS
@@ -467,6 +474,148 @@
         let patients     = [];   // merged patient list (Simon + local extras)
         let rawUpdateStr = "";   // Simon's last-update timestamp
         let isSaving     = false;
+
+        // ─────────────────────────────────────────────────────────────────────
+        //  FIREBASE / FIRESTORE  (shared cloud backend for snapshot tracking)
+        //
+        //  Lets all staff (any device) share the same tracking data, and keeps
+        //  a patient's recorded history even after they're removed from the
+        //  front-end list. No login: the app signs in silently/anonymously so
+        //  every device can read & write the shared /patients collection.
+        //  Data is de-identified. Falls back to local storage if cloud is down.
+        // ─────────────────────────────────────────────────────────────────────
+        const FIREBASE_CONFIG = {
+            apiKey: "AIzaSyAS2ldRDWrXWuZiufkKFCqmrwuS0iO3NyA",
+            authDomain: "obtools.firebaseapp.com",
+            projectId: "obtools",
+            storageBucket: "obtools.firebasestorage.app",
+            messagingSenderId: "55041929575",
+            appId: "1:55041929575:web:72ca541e3667d646c1bfc2"
+        };
+
+        let fbAuth = null, fbDb = null;
+        let CLOUD  = false;          // true once Firestore is reachable
+        let cloudCache = {};         // in-memory mirror of Firestore patient docs
+
+        // Admin gate for the 🛠 debug/export panel (the rest of the tool is open).
+        // Add a colleague's Google email here to grant them export access.
+        const ADMIN_EMAILS = ['leoleeviator@gmail.com'];
+        let isAdmin = false;
+
+        function initFirebase() {
+            if (typeof firebase === 'undefined') {
+                console.warn('Firebase SDK not loaded — running in local-only mode');
+                return;
+            }
+            try {
+                firebase.initializeApp(FIREBASE_CONFIG);
+                fbAuth = firebase.auth();
+                fbDb   = firebase.firestore();
+                fbAuth.onAuthStateChanged(onAuthChanged);
+                // Silent anonymous sign-in — no login step for staff.
+                fbAuth.signInAnonymously().catch(e => {
+                    console.warn('Anonymous sign-in failed — local-only mode', e);
+                    CLOUD = false; updateCloudBadge();
+                });
+            } catch (e) {
+                console.warn('Firebase init failed — local-only mode', e);
+            }
+        }
+
+        async function onAuthChanged(user) {
+            if (user) {
+                isAdmin = !user.isAnonymous && ADMIN_EMAILS.includes(user.email || '');
+                try {
+                    await loadCloudSnapshots();
+                    CLOUD = true;
+                    await migrateLocalToCloud();   // push any local-only data up once
+                    renderTable();
+                } catch (e) {
+                    CLOUD = false;
+                    console.warn('Cloud unreachable — local mode', e);
+                }
+            } else {
+                CLOUD = false;
+                isAdmin = false;
+            }
+            updateCloudBadge();
+        }
+
+        function updateCloudBadge() {
+            const badge = document.getElementById('cloudBadge');
+            if (!badge) return;
+            badge.innerHTML = CLOUD
+                ? '<span class="sync-badge sync-ok">☁ 雲端同步</span>'
+                : '<span class="sync-badge sync-off">本機記錄</span>';
+        }
+
+        // ── Admin gate (Google sign-in) for the debug/export panel ────────────
+        async function adminSignIn() {
+            if (!fbAuth) { alert('雲端服務尚未就緒，請稍後再試。'); return false; }
+            try {
+                const provider = new firebase.auth.GoogleAuthProvider();
+                const res = await fbAuth.signInWithPopup(provider);
+                const email = res.user && res.user.email;
+                if (ADMIN_EMAILS.includes(email)) { isAdmin = true; return true; }
+                alert('此帳號無管理權限：' + (email || '未知'));
+                await fbAuth.signOut();
+                await fbAuth.signInAnonymously().catch(() => {});
+                return false;
+            } catch (e) {
+                console.error('Admin sign-in failed', e);
+                if (e && e.code === 'auth/unauthorized-domain') {
+                    alert('此網域未授權登入，請於正式網站 obtools.web.app 使用管理功能。');
+                } else if (e && e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
+                    alert('登入失敗：' + (e.message || e));
+                }
+                return false;
+            }
+        }
+
+        async function adminSignOut() {
+            isAdmin = false;
+            const panel = document.getElementById('debugPanel');
+            if (panel) panel.style.display = 'none';
+            try { await fbAuth.signOut(); await fbAuth.signInAnonymously(); } catch (e) {}
+        }
+
+        // Firestore doc IDs can't contain '/'; sanitize the patientKey.
+        const encodeKey = k => k.replace(/\//g, '_');
+
+        // Load all patient tracking docs from Firestore into the in-memory store.
+        async function loadCloudSnapshots() {
+            const snap = await fbDb.collection('patients').get();
+            const data = {};
+            snap.forEach(doc => {
+                const d = doc.data() || {};
+                data[doc.id] = { history: d.history || [] };
+            });
+            cloudCache = data;
+        }
+
+        // One-time merge: push any local-only snapshots up to the cloud so data
+        // recorded before going online (or on another device) isn't lost.
+        async function migrateLocalToCloud() {
+            let local = {};
+            try { local = JSON.parse(localStorage.getItem(SNAP_KEY) || '{}'); } catch(e) {}
+            const tasks = [];
+            Object.keys(local).forEach(k => {
+                const ek = encodeKey(k);
+                const loc = local[k] || { history: [] };
+                const cloud = cloudCache[ek] || { history: [] };
+                const seen = new Set(cloud.history.map(h => h.time));
+                let merged = cloud.history.slice();
+                let changed = false;
+                (loc.history || []).forEach(h => { if (!seen.has(h.time)) { merged.push(h); changed = true; } });
+                if (changed) {
+                    merged.sort((a,b) => new Date(a.time) - new Date(b.time));
+                    cloudCache[ek] = { history: merged };
+                    tasks.push(fbDb.collection('patients').doc(ek)
+                        .set({ history: merged, updatedAt: new Date().toISOString() }, { merge: true }));
+                }
+            });
+            if (tasks.length) await Promise.all(tasks);
+        }
 
         // ── Utilities ────────────────────────────────────────────────────────
 
@@ -816,13 +965,42 @@
 
         const SNAP_KEY = 'ob_snapshots_v1';
 
+        let memSnaps = null;         // live in-memory store for LOCAL mode
+
+        // Source of truth (live reference, mutable by callers):
+        //   cloud mode → cloudCache (keyed by sanitized patientKey)
+        //   local mode → memSnaps  (lazy-loaded from localStorage)
+        // encodeKey only changes '/', which patientKeys effectively never
+        // contain, so keys are interchangeable in practice.
         function allSnapshots() {
-            try { return JSON.parse(localStorage.getItem(SNAP_KEY) || '{}'); }
-            catch(e) { return {}; }
+            if (CLOUD) return cloudCache;
+            if (memSnaps === null) {
+                try { memSnaps = JSON.parse(localStorage.getItem(SNAP_KEY) || '{}'); }
+                catch(e) { memSnaps = {}; }
+            }
+            return memSnaps;
         }
 
+        // Whole-object save. Persists every patient to the active backend.
         function saveAllSnapshots(data) {
-            localStorage.setItem(SNAP_KEY, JSON.stringify(data));
+            if (CLOUD) { cloudCache = data; }
+            else        { memSnaps   = data; localStorage.setItem(SNAP_KEY, JSON.stringify(data)); }
+            Object.keys(data).forEach(k => persistPatient(k));
+        }
+
+        // Persist a single patient's tracking doc to the active backend.
+        function persistPatient(k) {
+            const store = allSnapshots();
+            const rec = store[k] || store[encodeKey(k)];
+            if (!rec) return;
+            if (CLOUD && fbDb) {
+                fbDb.collection('patients').doc(encodeKey(k))
+                    .set({ history: rec.history || [],
+                           updatedAt: new Date().toISOString() }, { merge: true })
+                    .catch(e => console.warn('Cloud save failed for', k, e));
+            } else {
+                localStorage.setItem(SNAP_KEY, JSON.stringify(store));
+            }
         }
 
         function takeSnapshot(p) {
@@ -832,7 +1010,7 @@
 
             const snaps = allSnapshots();
             const k = patientKey(p);
-            if (!snaps[k]) snaps[k] = { history: [], actualLaborTime: '' };
+            if (!snaps[k]) snaps[k] = { history: [] };
 
             const data = snaps[k];
             const last = data.history[data.history.length - 1];
@@ -865,7 +1043,7 @@
                 v4Hours:      v4h, v4AbsTime:    abs(v4h),
             });
 
-            saveAllSnapshots(snaps);
+            persistPatient(k);
         }
 
         function autoSnapshot() { patients.forEach(p => takeSnapshot(p)); }
@@ -884,18 +1062,11 @@
             return unchanged ? last.time : parseToDate(rawUpdateStr).toISOString();
         }
 
-        function setActualLaborTime(k, value) {
-            const snaps = allSnapshots();
-            if (!snaps[k]) snaps[k] = { history: [], actualLaborTime: '' };
-            snaps[k].actualLaborTime = value;
-            saveAllSnapshots(snaps);
-        }
-
-        // ── Export training data ──────────────────────────────────────────────
+        // ── Export tracked data ───────────────────────────────────────────────
         //
-        //  Flattens every stored snapshot into one row, joined with the patient's
-        //  actual labor time. The actual_ttb_h column (real hours from exam to
-        //  birth) is the ground-truth target for re-fitting the algorithm.
+        //  Flattens every stored snapshot into one row. Each row is one cervical
+        //  exam with its clinical values and the four models' predictions —
+        //  a record of how each patient progressed over time.
         //
         function buildExportRows() {
             const snaps = allSnapshots();
@@ -906,15 +1077,9 @@
             const rows = [];
             Object.keys(snaps).forEach(k => {
                 const data = snaps[k];
-                const actualStr = data.actualLaborTime || '';
-                const actual = actualStr ? new Date(actualStr) : null;
                 const id = idMap[k] || { name: k.split('|')[0] || '', room: k.split('|')[1] || '' };
 
                 (data.history || []).forEach(s => {
-                    const examT = new Date(s.time);
-                    const actualTtb = actual ? (actual - examT) / 3600000 : '';
-                    const errH = (h, abs) => (actual && h > 0 && abs)
-                        ? ((actual - new Date(abs)) / 3600000) : '';
                     rows.push({
                         name: id.name, room: id.room,
                         exam_time: s.time,
@@ -922,16 +1087,10 @@
                         epidural: boolParse(s.epidural) ? 1 : 0,
                         induction: boolParse(s.induction) ? 1 : 0,
                         prom: boolParse(s.prom) ? 1 : 0,
-                        actual_labor_time: actualStr,
-                        actual_ttb_h: actualTtb === '' ? '' : actualTtb.toFixed(2),
                         simon_pred_h: (s.simonHours == null ? '' : s.simonHours.toFixed(2)),
-                        simon_err_h: errH(s.simonHours, s.simonAbsTime) === '' ? '' : errH(s.simonHours, s.simonAbsTime).toFixed(2),
                         leo_pred_h: (s.leoHours == null ? '' : s.leoHours.toFixed(2)),
-                        leo_err_h: errH(s.leoHours, s.leoAbsTime) === '' ? '' : errH(s.leoHours, s.leoAbsTime).toFixed(2),
                         v3_pred_h: (s.v3Hours == null ? '' : s.v3Hours.toFixed(2)),
-                        v3_err_h: errH(s.v3Hours, s.v3AbsTime) === '' ? '' : errH(s.v3Hours, s.v3AbsTime).toFixed(2),
                         v4_pred_h: (s.v4Hours == null ? '' : s.v4Hours.toFixed(2)),
-                        v4_err_h: errH(s.v4Hours, s.v4AbsTime) === '' ? '' : errH(s.v4Hours, s.v4AbsTime).toFixed(2),
                     });
                 });
             });
@@ -951,22 +1110,29 @@
             setTimeout(() => URL.revokeObjectURL(url), 1000);
         }
 
-        function toggleDebugPanel() {
+        async function toggleDebugPanel() {
             const panel = document.getElementById('debugPanel');
-            const show  = panel.style.display === 'none' || panel.style.display === '';
-            panel.style.display = show ? 'block' : 'none';
-            if (show) {
-                const rows = buildExportRows();
-                const withActual = rows.filter(r => r.actual_ttb_h !== '').length;
-                document.getElementById('debugStats').innerText =
-                    `共 ${rows.length} 筆評估記錄，其中 ${withActual} 筆已有實際分娩時間`;
+            const isOpen = panel.style.display === 'block';
+            if (isOpen) { panel.style.display = 'none'; return; }
+
+            // Require admin sign-in before opening the export panel
+            if (!isAdmin) {
+                const ok = await adminSignIn();
+                if (!ok) return;
             }
+            panel.style.display = 'block';
+            const rows = buildExportRows();
+            const nPatients = new Set(rows.map(r => r.name + '|' + r.room)).size;
+            const mode = CLOUD ? '☁ 雲端' : '本機';
+            const who  = (fbAuth && fbAuth.currentUser && fbAuth.currentUser.email) || '';
+            document.getElementById('debugStats').innerText =
+                `共 ${rows.length} 筆評估記錄、${nPatients} 位產婦（${mode}）` + (who ? ` ｜ ${who}` : '');
         }
 
         function exportData(fmt) {
             const rows = buildExportRows();
             if (!rows.length) {
-                alert("尚無可匯出的評估記錄。請先讓資料累積（刷新或編輯後會自動記錄），並在記錄面板填入實際分娩時間。");
+                alert("尚無可匯出的評估記錄。請先讓資料累積（刷新或編輯後會自動記錄）。");
                 return;
             }
             const stamp = formatDisplayTime(new Date()).replace(/[\/: ]/g, '').slice(0, 12);
@@ -994,7 +1160,7 @@
             if (!row) return;
             const hidden = row.style.display === 'none' || row.style.display === '';
             row.style.display = hidden ? 'table-row' : 'none';
-            // Refresh panel content each time it opens so deltas are current
+            // Refresh panel content each time it opens
             if (hidden) rerenderHistory(i);
         }
 
@@ -1007,20 +1173,13 @@
         function renderHistoryPanel(p, i) {
             const snaps = allSnapshots();
             const k = patientKey(p);
-            const data = snaps[k] || { history: [], actualLaborTime: '' };
-            const actualTime = data.actualLaborTime ? new Date(data.actualLaborTime) : null;
+            const data = snaps[k] || { history: [] };
 
-            // Render one prediction cell: absolute time + (Xh) + delta vs actual
+            // Render one prediction cell: absolute predicted time + (Xh)
             const cell = (hours, absTime) => {
                 if (hours === 0) return '已全開';
                 if (!absTime)    return '--';
-                let s = `${fmtAbsTime(new Date(absTime))} (${hours.toFixed(1)}h)`;
-                if (actualTime && hours > 0) {
-                    const d = (actualTime - new Date(absTime)) / 3600000;
-                    const col = Math.abs(d) < 2 ? '#2e7d32' : '#c62828';
-                    s += `<br><small style="color:${col}">${d > 0 ? '+' : ''}${d.toFixed(1)}h vs 實際</small>`;
-                }
-                return s;
+                return `${fmtAbsTime(new Date(absTime))} (${hours.toFixed(1)}h)`;
             };
 
             let rows = '';
@@ -1045,12 +1204,6 @@
             if (!rows) rows = `<tr><td colspan="9" style="color:#999;text-align:center;padding:8px">
                 尚無評估記錄（資料變動時自動記錄）</td></tr>`;
 
-            const actualDisplay = actualTime
-                ? `<span style="color:#2e7d32;margin-left:8px;font-size:11px">✓ ${fmtAbsTime(actualTime)}</span>`
-                : '';
-
-            const escapedKey = k.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-
             return `<div class="history-panel">
                 <div style="font-weight:bold;color:#880e4f;margin-bottom:6px;font-size:12px">
                     📊 評估記錄追蹤 — ${p.name || '新患者'}
@@ -1066,13 +1219,6 @@
                     </tr></thead>
                     <tbody>${rows}</tbody>
                 </table>
-                </div>
-                <div style="margin-top:8px;font-size:12px;display:flex;align-items:center;flex-wrap:wrap;gap:6px">
-                    <label style="font-weight:bold;color:#880e4f">實際分娩時間：</label>
-                    <input type="datetime-local" value="${data.actualLaborTime || ''}"
-                        onchange="setActualLaborTime('${escapedKey}', this.value); rerenderHistory(${i})"
-                        style="font-size:12px;padding:3px 6px;border:1px solid #ddd;border-radius:4px">
-                    ${actualDisplay}
                 </div>
             </div>`;
         }
@@ -1287,6 +1433,8 @@
 
         // ── Boot ──────────────────────────────────────────────────────────────
         if (!HAS_OWN_BACKEND) updateSyncStatus(false);
+        initFirebase();
+        updateCloudBadge();
         loadData();
     </script>
 
