@@ -9,6 +9,8 @@
       "node_modules/**",
       "firebase.json",
       ".firebaserc",
+      "firestore.rules",
+      "firestore.indexes.json",
       "*.md"
     ],
     "cleanUrls": true
