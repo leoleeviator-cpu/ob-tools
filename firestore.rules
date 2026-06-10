@@ -3,27 +3,21 @@ rules_version = '2';
 // ─────────────────────────────────────────────────────────────────────
 //  OB Tools — Firestore security rules
 //
-//  Access model: Google sign-in + email allowlist.
-//  Only verified Google accounts whose email is in STAFF may read/write.
-//  Add a colleague by adding their Google email to the list below,
-//  then run:  firebase deploy --only firestore:rules
+//  Access model: no login. The app signs in anonymously, so every
+//  device that opens the tool can read & write the shared tracking data.
+//  Requiring auth != null (an anonymous token) keeps the database from
+//  being writable by anonymous REST calls that never load the app.
+//
+//  Stored data is de-identified (room | masked name + clinical numbers
+//  + predicted times). No patient IDs, no full names.
 // ─────────────────────────────────────────────────────────────────────
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isStaff() {
-      return request.auth != null
-          && request.auth.token.email_verified == true
-          && request.auth.token.email in [
-              'leoleeviator@gmail.com'
-              // , 'colleague@gmail.com'
-          ];
-    }
-
-    // Per-patient tracking documents (de-identified: room | masked name)
+    // Per-patient tracking documents
     match /patients/{patientKey} {
-      allow read, write: if isStaff();
+      allow read, write: if request.auth != null;
     }
 
     // Deny everything else by default
