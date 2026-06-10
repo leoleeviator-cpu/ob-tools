@@ -34,6 +34,7 @@
         button { padding: 8px 12px; cursor: pointer; border: none; border-radius: 6px; font-weight: bold; transition: 0.3s; font-size: 13px; }
         .btn-edit    { background-color: #64b5f6; color: white; white-space: nowrap; }
         .btn-refresh { background-color: var(--cancel-color); color: white; white-space: nowrap; }
+        .btn-export  { background-color: #26a69a; color: white; white-space: nowrap; }
         .btn-add     { background-color: var(--primary-color); color: white; margin-bottom: 8px; width: 100%; }
         .btn-clear   { background-color: #ff8a65; color: white; margin-bottom: 8px; width: 100%; }
         .btn-delete  { background-color: #e57373; color: white; padding: 4px 6px; font-size: 11px; border-radius: 4px; }
@@ -54,14 +55,19 @@
         /* Prediction columns */
         .col-simon { background-color: #f3e5f5; color: #6a1b9a; font-weight: bold; min-width: 135px; font-size: 11px; }
         .col-leo   { background-color: #fff0f5; color: var(--accent-color); font-weight: bold; min-width: 145px; font-size: 11px; }
-        th.col-simon { background-color: #9c27b0; }
-        th.col-leo   { background-color: #e91e63; }
+        .col-v3    { background-color: #e8f5e9; color: #1b5e20; font-weight: bold; min-width: 145px; font-size: 11px; }
+        .col-v4    { background-color: #e0f2f1; color: #00695c; font-weight: bold; min-width: 150px; font-size: 11px; }
+        /* Prediction-column HEADERS: strong, distinct, high-contrast */
+        th.col-simon { background-color: #6a1b9a; color: #fff; }
+        th.col-leo   { background-color: #ad1457; color: #fff; }
+        th.col-v3    { background-color: #1b5e20; color: #fff; }
+        th.col-v4    { background-color: #004d40; color: #fff; }
 
         .flag-col { width: 36px; }
 
         /* Archived (deleted by Simon) rows */
         tr.archived-row td { background-color: #fafafa; color: #bbb; }
-        tr.archived-row .col-simon, tr.archived-row .col-leo { color: #bbb; background-color: #f5f5f5; }
+        tr.archived-row .col-simon, tr.archived-row .col-leo, tr.archived-row .col-v3, tr.archived-row .col-v4 { color: #bbb; background-color: #f5f5f5; }
 
         .badge-archived {
             display: inline-block; font-size: 10px; font-weight: bold;
@@ -104,17 +110,39 @@
         }
 
         .legend {
-            margin-top: 10px; padding: 8px 12px;
-            background: #fce4ec; border-radius: 6px;
-            font-size: 11px; color: #880e4f; line-height: 1.8;
+            padding: 8px 12px;
+            font-size: 11px; line-height: 1.8;
         }
-        .legend strong { color: #d81b60; }
+        .legend-models {
+            margin-top: 10px;
+            background: #fce4ec; color: #880e4f;
+            border-radius: 6px 6px 0 0;
+        }
+        .legend-models strong { color: #d81b60; }
+        .legend-notes {
+            margin-top: 2px;
+            background: #e8eaf6; color: #37474f;
+            border-radius: 0 0 6px 6px;
+        }
+        .legend-notes strong { color: #283593; }
 
         .footer-info {
             margin-top: 16px; padding: 10px; text-align: center;
             color: #999; font-size: 11px; line-height: 1.6;
         }
         .footer-info a { color: var(--accent-color); text-decoration: none; }
+
+        /* History panel */
+        .history-row > td { padding: 0 !important; border-top: 2px solid var(--primary-color); }
+        .history-panel { padding: 10px 14px; background: #fff9fc; }
+        .history-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 8px; min-width: 0; }
+        .history-table th, .history-table td { border: 1px solid #f0c4d4; padding: 4px 6px; text-align: center; white-space: nowrap; }
+        .history-table th { background: #fce4ec; color: #880e4f; font-weight: bold; }
+        .history-table .col-simon { background-color: #f3e5f5; color: #6a1b9a; }
+        .history-table .col-leo   { background-color: #fff0f5; color: var(--accent-color); }
+        .history-table .col-v3    { background-color: #e8f5e9; color: #1b5e20; }
+        .history-table .col-v4    { background-color: #e0f2f1; color: #00695c; }
+        .btn-history { background: #f8bbd0; color: #880e4f; padding: 2px 8px; font-size: 10px; border-radius: 3px; cursor: pointer; border: none; font-weight: bold; margin-top: 3px; }
 
         /* Setup notice */
         .setup-notice {
@@ -135,7 +163,7 @@
 
     <div class="header">
         <div>
-            <h1>產科小工具 <small style="font-size:12px;color:#c2185b">Leo版</small></h1>
+            <h1>新產科小工具</h1>
             <div class="info-bar">
                 最後內診/更新：<span id="lastUpdate">2026/6/8 21:38:16</span>
                 <span id="syncStatus"><span class="sync-badge sync-off">僅讀取模式</span></span>
@@ -145,6 +173,16 @@
         <div class="btn-group">
             <button id="mainEditBtn" class="btn-edit" onclick="toggleEditMode()">進入編輯</button>
             <button id="refreshBtn" class="btn-refresh" onclick="handleRefresh()">刷新</button>
+            <button id="debugBtn" class="btn-export" onclick="toggleDebugPanel()" title="開發者工具：匯出記錄資料">🛠</button>
+        </div>
+    </div>
+
+    <div id="debugPanel" style="display:none; margin:0 0 10px; padding:10px 14px; background:#eceff1; border:1px solid #b0bec5; border-radius:6px; font-size:12px; color:#37474f;">
+        <strong>🛠 Backend Debug</strong>
+        <span id="debugStats" style="margin-left:8px; color:#607d8b;"></span>
+        <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="btn-export" onclick="exportData('csv')" title="匯出所有評估記錄與實際分娩時間 (CSV)">📥 匯出 CSV</button>
+            <button class="btn-export" onclick="exportData('json')" title="匯出原始資料 (JSON)">📥 匯出 JSON</button>
         </div>
     </div>
 
@@ -165,8 +203,10 @@
                     <th class="flag-col" title="Epidural analgesia">Epi</th>
                     <th class="flag-col" title="Labor induction">Ind</th>
                     <th class="flag-col" title="Premature rupture of membranes">PROM</th>
-                    <th class="col-simon display-only">Simon 預測 v1</th>
+                    <th class="col-simon display-only">簡氏預測 v1</th>
                     <th class="col-leo   display-only">新版預測 v2</th>
+                    <th class="col-v3    display-only">快產程預測 v3</th>
+                    <th class="col-v4    display-only">慢產程預測 v4</th>
                     <th class="edit-only" style="width:50px">操作</th>
                 </tr>
             </thead>
@@ -394,16 +434,22 @@
         </table>
     </div>
 
-    <div class="legend">
-        <strong>🟣 Simon v1</strong>：原版 Friedman-based 公式（無 Epi/Ind/PROM）。
-        <strong>🔴 新版 v2</strong>：Zhang 2010 中位數 + ACOG 2024 三段式（含 Epi/Ind/PROM 調整）。
-        <strong>已出院</strong>：Simon 已從名單刪除，此處保留作歷史比對。
+    <div class="legend legend-models">
+        <strong>🟣 簡氏 v1</strong>：簡醫師原始公式，傾向高估。
+        <strong>🔴 新版 v2</strong>：Zhang 2010＋ACOG 2024 三段式公式。
+        <strong>🟢 快產程 v3</strong>：適合產程進展<u>較快</u>者，預測快產最準。
+        <strong>🔵 慢產程 v4</strong>：適合產程進展<u>較慢</u>者，預測慢產偏差最小。
+    </div>
+    <div class="legend legend-notes">
+        ※ 以 15 名產婦、153 筆內診資料驗證。子宮頸開 <strong>≥3 公分</strong>後較準（誤差約 1–2 小時）；
+        潛伏期（&lt;3 公分）變異大，請以「時間區間」參考、勿視為精確時刻。
+        ｜ <strong>已出院</strong>：記錄人員已將其從名單移除，此處保留供歷史比對。
     </div>
 
     <div class="footer-info">
-        <p>原作：CM56 簡馳原 ｜ 演算法改進 + 同步介面：Leo</p>
+        <p>原作：CM56 簡馳原 ｜ 演算法改進 + 同步介面：M64 李育德</p>
         <p>參考：Zhang et al. 2010 · ACOG CPG-8 2024 · Hamilton et al. AJOG 2024 · Huang et al. eClinicalMedicine 2025</p>
-        <p><a href="mailto:102768@tool.caaumed.org.tw">102768@tool.caaumed.org.tw</a></p>
+        <p><a href="mailto:102768@tool.caaumed.org.tw">102768@tool.caaumed.org.tw</a> ｜ <a href="mailto:102703@tool.caaumed.org.tw">102703@tool.caaumed.org.tw</a></p>
     </div>
 
     <script>
@@ -480,7 +526,7 @@
                         ...sp,
                         epidural: false, induction: false, prom: false,
                         deletedBySimon: false, _new: true,
-                        assessedAt: new Date().toISOString()
+                        assessedAt: parseToDate(rawUpdateStr).toISOString()
                     });
                 }
             });
@@ -528,11 +574,14 @@
                 }
 
                 patients = mergePatients(simonPatients, myPatients);
+                // Lock each patient's prediction reference to last known assessment time
+                patients.forEach(p => { p.assessedAt = resolveAssessedAt(p); });
 
                 // Silently persist the merged state so archived flags survive page reloads
                 if (HAS_OWN_BACKEND) silentSave();
 
                 renderTable();
+                autoSnapshot();
                 updateSyncStatus(true);
 
             } catch (e) {
@@ -573,14 +622,14 @@
         //  Preserved exactly as published at simonjian2003.github.io/ob-tools
         //  (Friedman-inspired piecewise, no intervention adjustments)
         //
-        function simonEstimate(p) {
+        function simonHours(p) {
             const dil     = parseFloat(p.dilation);
             const eff     = parseFloat(p.effacement) || 0;
             const station = parseFloat(p.station) || 0;
             const paraStr = p.para ? p.para.toString().toLowerCase() : '';
 
-            if (isNaN(dil) || dil < 0) return "--:--";
-            if (dil >= 10) return "已全開";
+            if (isNaN(dil) || dil < 0) return null;
+            if (dil >= 10) return 0;
 
             const isMultipara = !(paraStr.includes('p0') || paraStr === '0');
             const latentRate  = isMultipara ? 0.8 : 0.4;
@@ -598,9 +647,14 @@
 
             const stationBonus = 1 + (station * 0.1);
             totalHours = totalHours / stationBonus;
-            if (totalHours < 0.33) totalHours = 0.33;
+            return Math.max(0.33, totalHours);
+        }
 
-            return formatEstimate(totalHours, p.assessedAt);
+        function simonEstimate(p) {
+            const h = simonHours(p);
+            if (h === null) return "--:--";
+            if (h === 0)    return "已全開";
+            return formatEstimate(h, p.assessedAt);
         }
 
         // ── PREDICTION ENGINE: Leo v2 (improved, evidence-based) ─────────────
@@ -617,7 +671,7 @@
         //    • Huang et al. eClinicalMedicine 2025 – PROM OR 1.44 (≥1h 2nd stage),
         //                                             epidural OR 1.80
         //
-        function leoEstimate(p) {
+        function leoHours(p) {
             const dil     = parseFloat(p.dilation);
             const eff     = parseFloat(p.effacement) || 0;
             const station = parseFloat(p.station) || 0;
@@ -627,10 +681,9 @@
             const hasInduction = boolParse(p.induction);
             const hasPROM      = boolParse(p.prom);
 
-            if (isNaN(dil) || dil < 0) return "--:--";
-            if (dil >= 10) return "已全開";
+            if (isNaN(dil) || dil < 0) return null;
+            if (dil >= 10) return 0;
 
-            // Parity: catches P0, G1P0, Para 0, para0, nullipara, etc.
             const isMultipara = !(
                 paraStr === '0' ||
                 /p\s*0/.test(paraStr) ||
@@ -639,22 +692,17 @@
                 paraStr === 'primipara'
             );
 
-            // Zhang 2010 median rates (cm/h)
             const R_L = isMultipara ? 0.8 : 0.5;
             const R_A = isMultipara ? 2.5 : 1.5;
-
-            // Effacement factor [0.5, 1.0] — prevents extreme latent estimates
-            const effFactor = 0.5 + 0.5 * (Math.min(100, Math.max(0, eff)) / 100);
-
-            // Station multiplier [0.5, 1.5]
+            const effFactor   = 0.5 + 0.5 * (Math.min(100, Math.max(0, eff)) / 100);
             const stationMult = Math.max(0.5, Math.min(1.5, 1 + station * 0.1));
 
             let latentH = 0, activeH = 0;
 
             if (dil < 6) {
                 let lh = (6 - dil) / (R_L * effFactor);
-                if (hasInduction) lh *= 1.4;   // ACOG: latent phase "significantly longer"
-                if (hasPROM)      lh *= 0.9;   // direct head pressure accelerates dilation
+                if (hasInduction) lh *= 1.4;
+                if (hasPROM)      lh *= 0.9;
                 latentH = lh;
 
                 let ah = (4 / R_A) / stationMult;
@@ -666,24 +714,79 @@
                 activeH = ah;
             }
 
-            // 2nd stage medians (Zhang/ACOG Table 1)
             let s2h = isMultipara
                 ? (hasEpidural ? 0.35 : 0.15)
                 : (hasEpidural ? 1.1  : 0.6);
             s2h = s2h / stationMult;
-            if (hasPROM) s2h *= 1.15;  // Huang et al. 2025: OR 1.44 → ~1.15 time adj.
+            if (hasPROM) s2h *= 1.15;
 
-            const total = Math.max(0.25, latentH + activeH + s2h);
+            return Math.max(0.25, latentH + activeH + s2h);
+        }
 
-            // Append intervention badges
+        function leoEstimate(p) {
+            const h = leoHours(p);
+            if (h === null) return "--:--";
+            if (h === 0)    return "已全開";
+
             const flags = [
-                hasEpidural  ? '<span class="flag-badge flag-epi">Epi</span>'   : '',
-                hasInduction ? '<span class="flag-badge flag-ind">Ind</span>'   : '',
-                hasPROM      ? '<span class="flag-badge flag-prom">PROM</span>' : '',
+                boolParse(p.epidural)  ? '<span class="flag-badge flag-epi">Epi</span>'   : '',
+                boolParse(p.induction) ? '<span class="flag-badge flag-ind">Ind</span>'   : '',
+                boolParse(p.prom)      ? '<span class="flag-badge flag-prom">PROM</span>' : '',
             ].join('');
 
-            return formatEstimate(total, p.assessedAt) + (flags ? `<br><small>${flags}</small>` : '');
+            return formatEstimate(h, p.assessedAt) + (flags ? `<br><small>${flags}</small>` : '');
         }
+
+        // ── PREDICTION ENGINE: v3 (data-optimized) ───────────────────────────
+        //
+        //  Empirical log-linear model fitted to 8 real labor courses
+        //  (94 cervical exams, OBS labor data 2026-06).
+        //
+        //    hours_to_birth = exp( a + b·dil + c·(eff/100) + d·station )
+        //
+        //  Fit by least squares with leave-one-patient-out cross-validation:
+        //    CV MAE 2.07 h · RMSE 2.47 h · bias −0.12 h
+        //  (vs v2 multipara: MAE 2.26 h, bias +0.64 h — v3 removes the
+        //   systematic over-estimation and is parity-agnostic.)
+        //
+        //  NOTE: validation set had no parity / epidural / induction / PROM
+        //  labels, so v3 is a base curve. Intervention badges are still shown
+        //  for reference but do not yet shift the v3 estimate.
+        //
+        //  v4 (below) refits the SAME functional form on a combined 15-patient
+        //  / 153-exam dataset (Cohorts A+B). It corrects v3's under-estimation on
+        //  slower labors — leave-one-patient-out CV MAE 4.27 h, bias +0.24 h, and
+        //  the best RMSE of all four models. See REPORT_model_comparison.md.
+        //
+        const V3 = { a: 3.2759,  b: -0.33468, c: -1.17288, d: -0.02429 };
+        const V4 = { a: 3.25928, b: -0.29182, c: -1.65748, d: -0.14138 };
+
+        // Generic exp-model: hours = exp(a + b·dil + c·eff/100 + d·station)
+        function expModelHours(coef, p) {
+            const dil     = parseFloat(p.dilation);
+            const eff     = Math.min(100, Math.max(0, parseFloat(p.effacement) || 0));
+            const station = parseFloat(p.station) || 0;
+            if (isNaN(dil) || dil < 0) return null;
+            if (dil >= 10) return 0;
+            return Math.max(0.1, Math.exp(coef.a + coef.b * dil + coef.c * (eff / 100) + coef.d * station));
+        }
+
+        function expModelEstimate(coef, p) {
+            const h = expModelHours(coef, p);
+            if (h === null) return "--:--";
+            if (h === 0)    return "已全開";
+            const flags = [
+                boolParse(p.epidural)  ? '<span class="flag-badge flag-epi">Epi</span>'   : '',
+                boolParse(p.induction) ? '<span class="flag-badge flag-ind">Ind</span>'   : '',
+                boolParse(p.prom)      ? '<span class="flag-badge flag-prom">PROM</span>' : '',
+            ].join('');
+            return formatEstimate(h, p.assessedAt) + (flags ? `<br><small>${flags}</small>` : '');
+        }
+
+        const leoV3Hours    = p => expModelHours(V3, p);
+        const leoV3Estimate = p => expModelEstimate(V3, p);
+        const leoV4Hours    = p => expModelHours(V4, p);
+        const leoV4Estimate = p => expModelEstimate(V4, p);
 
         // Shared formatter: hours → HH:MM (today/明/後/date) + (Xh)
         // refStr: per-patient assessedAt ISO string (falls back to rawUpdateStr)
@@ -701,6 +804,282 @@
             else if (diff  >  2) label = `(${estDate.getMonth()+1}/${estDate.getDate()}) `;
 
             return `${label}${String(estDate.getHours()).padStart(2,'0')}:${String(estDate.getMinutes()).padStart(2,'0')} (${totalHours.toFixed(1)}h)`;
+        }
+
+        // ── Snapshot & History Tracking ───────────────────────────────────────
+        //
+        //  Snapshots are stored in localStorage (no backend needed).
+        //  A new snapshot is taken whenever clinical fields change —
+        //  each snapshot captures its own timestamp as the prediction reference,
+        //  so predicted times never drift on future refreshes.
+        //
+
+        const SNAP_KEY = 'ob_snapshots_v1';
+
+        function allSnapshots() {
+            try { return JSON.parse(localStorage.getItem(SNAP_KEY) || '{}'); }
+            catch(e) { return {}; }
+        }
+
+        function saveAllSnapshots(data) {
+            localStorage.setItem(SNAP_KEY, JSON.stringify(data));
+        }
+
+        function takeSnapshot(p) {
+            if (p.deletedBySimon) return;
+            const dil = parseFloat(p.dilation);
+            if (isNaN(dil) || p.dilation === '' || p.dilation === undefined) return;
+
+            const snaps = allSnapshots();
+            const k = patientKey(p);
+            if (!snaps[k]) snaps[k] = { history: [], actualLaborTime: '' };
+
+            const data = snaps[k];
+            const last = data.history[data.history.length - 1];
+
+            // Skip if nothing clinically changed since last snapshot
+            if (last) {
+                const unchanged = ['dilation','effacement','station','epidural','induction','prom']
+                    .every(f => String(p[f]) === String(last[f]));
+                if (unchanged) return;
+            }
+
+            // Use Simon's last-update time as the assessment timestamp,
+            // not the page-load time — this reflects when the data actually changed.
+            const now = parseToDate(rawUpdateStr).toISOString();
+            const ref = parseToDate(rawUpdateStr);
+            const sh  = simonHours(p);
+            const lh  = leoHours(p);
+            const vh  = leoV3Hours(p);
+            const v4h = leoV4Hours(p);
+            const abs = h => (h && h > 0) ? new Date(ref.getTime() + h * 3600000).toISOString() : null;
+
+            data.history.push({
+                time:         now,
+                dilation:     p.dilation,   effacement: p.effacement,
+                station:      p.station,    epidural:   p.epidural,
+                induction:    p.induction,  prom:       p.prom,
+                simonHours:   sh,  simonAbsTime: abs(sh),
+                leoHours:     lh,  leoAbsTime:   abs(lh),
+                v3Hours:      vh,  v3AbsTime:    abs(vh),
+                v4Hours:      v4h, v4AbsTime:    abs(v4h),
+            });
+
+            saveAllSnapshots(snaps);
+        }
+
+        function autoSnapshot() { patients.forEach(p => takeSnapshot(p)); }
+
+        // Return the timestamp the main table should use as prediction reference.
+        // Reuses the last snapshot's time when clinical data is unchanged,
+        // so main table and history panel always show the same predicted time.
+        function resolveAssessedAt(p) {
+            const snaps = allSnapshots();
+            const k = patientKey(p);
+            const data = snaps[k];
+            if (!data || data.history.length === 0) return parseToDate(rawUpdateStr).toISOString();
+            const last = data.history[data.history.length - 1];
+            const unchanged = ['dilation','effacement','station','epidural','induction','prom']
+                .every(f => String(p[f]) === String(last[f]));
+            return unchanged ? last.time : parseToDate(rawUpdateStr).toISOString();
+        }
+
+        function setActualLaborTime(k, value) {
+            const snaps = allSnapshots();
+            if (!snaps[k]) snaps[k] = { history: [], actualLaborTime: '' };
+            snaps[k].actualLaborTime = value;
+            saveAllSnapshots(snaps);
+        }
+
+        // ── Export training data ──────────────────────────────────────────────
+        //
+        //  Flattens every stored snapshot into one row, joined with the patient's
+        //  actual labor time. The actual_ttb_h column (real hours from exam to
+        //  birth) is the ground-truth target for re-fitting the algorithm.
+        //
+        function buildExportRows() {
+            const snaps = allSnapshots();
+            // Map patientKey -> friendly name/room from current patient list
+            const idMap = {};
+            patients.forEach(p => { idMap[patientKey(p)] = { name: p.name || '', room: p.room || '' }; });
+
+            const rows = [];
+            Object.keys(snaps).forEach(k => {
+                const data = snaps[k];
+                const actualStr = data.actualLaborTime || '';
+                const actual = actualStr ? new Date(actualStr) : null;
+                const id = idMap[k] || { name: k.split('|')[0] || '', room: k.split('|')[1] || '' };
+
+                (data.history || []).forEach(s => {
+                    const examT = new Date(s.time);
+                    const actualTtb = actual ? (actual - examT) / 3600000 : '';
+                    const errH = (h, abs) => (actual && h > 0 && abs)
+                        ? ((actual - new Date(abs)) / 3600000) : '';
+                    rows.push({
+                        name: id.name, room: id.room,
+                        exam_time: s.time,
+                        dilation: s.dilation, effacement: s.effacement, station: s.station,
+                        epidural: boolParse(s.epidural) ? 1 : 0,
+                        induction: boolParse(s.induction) ? 1 : 0,
+                        prom: boolParse(s.prom) ? 1 : 0,
+                        actual_labor_time: actualStr,
+                        actual_ttb_h: actualTtb === '' ? '' : actualTtb.toFixed(2),
+                        simon_pred_h: (s.simonHours == null ? '' : s.simonHours.toFixed(2)),
+                        simon_err_h: errH(s.simonHours, s.simonAbsTime) === '' ? '' : errH(s.simonHours, s.simonAbsTime).toFixed(2),
+                        leo_pred_h: (s.leoHours == null ? '' : s.leoHours.toFixed(2)),
+                        leo_err_h: errH(s.leoHours, s.leoAbsTime) === '' ? '' : errH(s.leoHours, s.leoAbsTime).toFixed(2),
+                        v3_pred_h: (s.v3Hours == null ? '' : s.v3Hours.toFixed(2)),
+                        v3_err_h: errH(s.v3Hours, s.v3AbsTime) === '' ? '' : errH(s.v3Hours, s.v3AbsTime).toFixed(2),
+                        v4_pred_h: (s.v4Hours == null ? '' : s.v4Hours.toFixed(2)),
+                        v4_err_h: errH(s.v4Hours, s.v4AbsTime) === '' ? '' : errH(s.v4Hours, s.v4AbsTime).toFixed(2),
+                    });
+                });
+            });
+            // Sort by patient then exam time
+            rows.sort((a, b) => (a.name + a.room).localeCompare(b.name + b.room)
+                || new Date(a.exam_time) - new Date(b.exam_time));
+            return rows;
+        }
+
+        function downloadFile(filename, content, mime) {
+            const blob = new Blob([content], { type: mime });
+            const url  = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = filename;
+            document.body.appendChild(a); a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+
+        function toggleDebugPanel() {
+            const panel = document.getElementById('debugPanel');
+            const show  = panel.style.display === 'none' || panel.style.display === '';
+            panel.style.display = show ? 'block' : 'none';
+            if (show) {
+                const rows = buildExportRows();
+                const withActual = rows.filter(r => r.actual_ttb_h !== '').length;
+                document.getElementById('debugStats').innerText =
+                    `共 ${rows.length} 筆評估記錄，其中 ${withActual} 筆已有實際分娩時間`;
+            }
+        }
+
+        function exportData(fmt) {
+            const rows = buildExportRows();
+            if (!rows.length) {
+                alert("尚無可匯出的評估記錄。請先讓資料累積（刷新或編輯後會自動記錄），並在記錄面板填入實際分娩時間。");
+                return;
+            }
+            const stamp = formatDisplayTime(new Date()).replace(/[\/: ]/g, '').slice(0, 12);
+
+            if (fmt === 'json') {
+                downloadFile(`ob_labor_data_${stamp}.json`,
+                    JSON.stringify({ exportedAt: new Date().toISOString(), rows }, null, 2),
+                    'application/json');
+                return;
+            }
+            // CSV (UTF-8 BOM so Excel reads Chinese names correctly)
+            const cols = Object.keys(rows[0]);
+            const esc = v => {
+                const s = String(v == null ? '' : v);
+                return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+            };
+            const csv = '﻿' + [cols.join(',')]
+                .concat(rows.map(r => cols.map(c => esc(r[c])).join(',')))
+                .join('\r\n');
+            downloadFile(`ob_labor_data_${stamp}.csv`, csv, 'text/csv;charset=utf-8');
+        }
+
+        function toggleHistory(i) {
+            const row = document.getElementById(`histRow_${i}`);
+            if (!row) return;
+            const hidden = row.style.display === 'none' || row.style.display === '';
+            row.style.display = hidden ? 'table-row' : 'none';
+            // Refresh panel content each time it opens so deltas are current
+            if (hidden) rerenderHistory(i);
+        }
+
+        function fmtAbsTime(d) {
+            return `${d.getMonth()+1}/${d.getDate()} `
+                 + `${String(d.getHours()).padStart(2,'0')}:`
+                 + `${String(d.getMinutes()).padStart(2,'0')}`;
+        }
+
+        function renderHistoryPanel(p, i) {
+            const snaps = allSnapshots();
+            const k = patientKey(p);
+            const data = snaps[k] || { history: [], actualLaborTime: '' };
+            const actualTime = data.actualLaborTime ? new Date(data.actualLaborTime) : null;
+
+            // Render one prediction cell: absolute time + (Xh) + delta vs actual
+            const cell = (hours, absTime) => {
+                if (hours === 0) return '已全開';
+                if (!absTime)    return '--';
+                let s = `${fmtAbsTime(new Date(absTime))} (${hours.toFixed(1)}h)`;
+                if (actualTime && hours > 0) {
+                    const d = (actualTime - new Date(absTime)) / 3600000;
+                    const col = Math.abs(d) < 2 ? '#2e7d32' : '#c62828';
+                    s += `<br><small style="color:${col}">${d > 0 ? '+' : ''}${d.toFixed(1)}h vs 實際</small>`;
+                }
+                return s;
+            };
+
+            let rows = '';
+            data.history.forEach(snap => {
+                const flags = [
+                    boolParse(snap.epidural)  ? '<span class="flag-badge flag-epi">Epi</span>'   : '',
+                    boolParse(snap.induction) ? '<span class="flag-badge flag-ind">Ind</span>'   : '',
+                    boolParse(snap.prom)      ? '<span class="flag-badge flag-prom">PROM</span>' : '',
+                ].join('') || '—';
+
+                rows += `<tr>
+                    <td>${fmtAbsTime(new Date(snap.time))}</td>
+                    <td>${snap.dilation}</td><td>${snap.effacement}</td><td>${snap.station}</td>
+                    <td>${flags}</td>
+                    <td class="col-simon">${cell(snap.simonHours, snap.simonAbsTime)}</td>
+                    <td class="col-leo">${cell(snap.leoHours, snap.leoAbsTime)}</td>
+                    <td class="col-v3">${cell(snap.v3Hours, snap.v3AbsTime)}</td>
+                    <td class="col-v4">${cell(snap.v4Hours, snap.v4AbsTime)}</td>
+                </tr>`;
+            });
+
+            if (!rows) rows = `<tr><td colspan="9" style="color:#999;text-align:center;padding:8px">
+                尚無評估記錄（資料變動時自動記錄）</td></tr>`;
+
+            const actualDisplay = actualTime
+                ? `<span style="color:#2e7d32;margin-left:8px;font-size:11px">✓ ${fmtAbsTime(actualTime)}</span>`
+                : '';
+
+            const escapedKey = k.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+
+            return `<div class="history-panel">
+                <div style="font-weight:bold;color:#880e4f;margin-bottom:6px;font-size:12px">
+                    📊 評估記錄追蹤 — ${p.name || '新患者'}
+                </div>
+                <div style="overflow-x:auto">
+                <table class="history-table">
+                    <thead><tr>
+                        <th>評估時間</th><th>Dil</th><th>Eff%</th><th>Sta.</th><th>旗標</th>
+                        <th class="col-simon">簡氏 v1</th>
+                        <th class="col-leo">新版 v2</th>
+                        <th class="col-v3">快產程 v3</th>
+                        <th class="col-v4">慢產程 v4</th>
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+                </div>
+                <div style="margin-top:8px;font-size:12px;display:flex;align-items:center;flex-wrap:wrap;gap:6px">
+                    <label style="font-weight:bold;color:#880e4f">實際分娩時間：</label>
+                    <input type="datetime-local" value="${data.actualLaborTime || ''}"
+                        onchange="setActualLaborTime('${escapedKey}', this.value); rerenderHistory(${i})"
+                        style="font-size:12px;padding:3px 6px;border:1px solid #ddd;border-radius:4px">
+                    ${actualDisplay}
+                </div>
+            </div>`;
+        }
+
+        function rerenderHistory(i) {
+            const panel = document.getElementById(`histPanel_${i}`);
+            if (panel && patients[i]) panel.innerHTML = renderHistoryPanel(patients[i], i);
         }
 
         // ── Render ────────────────────────────────────────────────────────────
@@ -727,6 +1106,7 @@
 
             patients.forEach((p, i) => {
                 const tr = document.createElement('tr');
+                tr.id = `mainRow_${i}`;
                 const isArchived = !!p.deletedBySimon;
                 const isNew      = !!p._new;
 
@@ -778,10 +1158,24 @@
                         <input class="edit-only" type="checkbox" ${boolParse(p.prom) ? 'checked' : ''} onchange="updateField(${i},'prom',this.checked)">
                     </td>
                     <td class="col-simon display-only">${isArchived ? '<span style="color:#ccc">—</span>' : simonEstimate(p)}</td>
-                    <td class="col-leo   display-only">${leoEstimate(p)}</td>
+                    <td class="col-leo   display-only">${isArchived ? '<span style="color:#ccc">—</span>' : leoEstimate(p)}</td>
+                    <td class="col-v3    display-only">${isArchived ? '<span style="color:#ccc">—</span>' : leoV3Estimate(p)}</td>
+                    <td class="col-v4    display-only">
+                        <div style="display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap">
+                            <span>${isArchived ? '<span style="color:#ccc">—</span>' : leoV4Estimate(p)}</span>
+                            <button class="btn-history" onclick="toggleHistory(${i})">📊 記錄</button>
+                        </div>
+                    </td>
                     <td class="edit-only"><button class="btn-delete" onclick="deleteRow(${i})">刪除</button></td>
                 `;
                 tbody.appendChild(tr);
+
+                const histTr = document.createElement('tr');
+                histTr.id = `histRow_${i}`;
+                histTr.className = 'history-row';
+                histTr.style.display = 'none';
+                histTr.innerHTML = `<td colspan="15"><div id="histPanel_${i}">${renderHistoryPanel(p, i)}</div></td>`;
+                tbody.appendChild(histTr);
             });
         }
 
@@ -790,12 +1184,22 @@
         function updateField(index, field, value) {
             patients[index][field] = value;
             // Live-update prediction cells without full re-render
-            const rows = document.getElementById('patientTableBody').querySelectorAll('tr');
-            if (rows[index]) {
-                const simonCell = rows[index].querySelector('.col-simon');
-                const leoCell   = rows[index].querySelector('.col-leo');
-                if (simonCell) simonCell.innerHTML = patients[index].deletedBySimon ? '<span style="color:#ccc">—</span>' : simonEstimate(patients[index]);
-                if (leoCell)   leoCell.innerHTML   = leoEstimate(patients[index]);
+            const row = document.getElementById(`mainRow_${index}`);
+            if (row) {
+                const simonCell = row.querySelector('.col-simon');
+                const leoCell   = row.querySelector('.col-leo');
+                const v3Cell    = row.querySelector('.col-v3');
+                const v4Cell    = row.querySelector('.col-v4');
+                const archived  = patients[index].deletedBySimon;
+                const dash      = '<span style="color:#ccc">—</span>';
+                if (simonCell) simonCell.innerHTML = archived ? dash : simonEstimate(patients[index]);
+                if (leoCell)   leoCell.innerHTML   = archived ? dash : leoEstimate(patients[index]);
+                if (v3Cell)    v3Cell.innerHTML    = archived ? dash : leoV3Estimate(patients[index]);
+                if (v4Cell) {
+                    const pred = archived ? dash : leoV4Estimate(patients[index]);
+                    const histBtn = `<button class="btn-history" onclick="toggleHistory(${index})">📊 記錄</button>`;
+                    v4Cell.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap"><span>${pred}</span>${histBtn}</div>`;
+                }
             }
         }
 
@@ -872,6 +1276,7 @@
                 body.classList.remove('edit-mode');
                 editBtn.innerText = "進入編輯";
                 refreshBtn.innerText = "刷新";
+                autoSnapshot();
                 saveToCloud();
             } else {
                 body.classList.add('edit-mode');
