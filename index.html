@@ -35,6 +35,7 @@
         .btn-edit    { background-color: #64b5f6; color: white; white-space: nowrap; }
         .btn-refresh { background-color: var(--cancel-color); color: white; white-space: nowrap; }
         .btn-export  { background-color: #26a69a; color: white; white-space: nowrap; }
+        .btn-auth    { background-color: #5c6bc0; color: white; white-space: nowrap; }
         .btn-add     { background-color: var(--primary-color); color: white; margin-bottom: 8px; width: 100%; }
         .btn-clear   { background-color: #ff8a65; color: white; margin-bottom: 8px; width: 100%; }
         .btn-delete  { background-color: #e57373; color: white; padding: 4px 6px; font-size: 11px; border-radius: 4px; }
@@ -167,12 +168,14 @@
             <div class="info-bar">
                 最後內診/更新：<span id="lastUpdate">2026/6/8 21:38:16</span>
                 <span id="syncStatus"><span class="sync-badge sync-off">僅讀取模式</span></span>
+                <span id="cloudBadge"><span class="sync-badge sync-off">本機記錄</span></span>
             </div>
             <div class="info-bar" id="archivedInfo" style="display:none; color:#9e9e9e;"></div>
         </div>
         <div class="btn-group">
             <button id="mainEditBtn" class="btn-edit" onclick="toggleEditMode()">進入編輯</button>
             <button id="refreshBtn" class="btn-refresh" onclick="handleRefresh()">刷新</button>
+            <button id="authBtn" class="btn-auth" onclick="toggleAuth()" title="登入以啟用跨裝置雲端記錄">登入 Google</button>
             <button id="debugBtn" class="btn-export" onclick="toggleDebugPanel()" title="開發者工具：匯出記錄資料">🛠</button>
         </div>
     </div>
@@ -452,6 +455,11 @@
         <p><a href="mailto:102768@tool.caaumed.org.tw">102768@tool.caaumed.org.tw</a> ｜ <a href="mailto:102703@tool.caaumed.org.tw">102703@tool.caaumed.org.tw</a></p>
     </div>
 
+    <!-- Firebase SDK (compat build — exposes global `firebase`, works with inline handlers) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
     <script>
         // ─────────────────────────────────────────────────────────────────────
         //  BACKEND URLS
@@ -467,6 +475,143 @@
         let patients     = [];   // merged patient list (Simon + local extras)
         let rawUpdateStr = "";   // Simon's last-update timestamp
         let isSaving     = false;
+
+        // ─────────────────────────────────────────────────────────────────────
+        //  FIREBASE / FIRESTORE  (cloud backend for snapshot tracking data)
+        //
+        //  Only the snapshot/history layer uses Firestore. The patient list
+        //  still comes from Simon's backend. Access is gated by Google sign-in
+        //  + an email allowlist enforced in firestore.rules (server-side).
+        // ─────────────────────────────────────────────────────────────────────
+        const FIREBASE_CONFIG = {
+            apiKey: "AIzaSyAS2ldRDWrXWuZiufkKFCqmrwuS0iO3NyA",
+            authDomain: "obtools.firebaseapp.com",
+            projectId: "obtools",
+            storageBucket: "obtools.firebasestorage.app",
+            messagingSenderId: "55041929575",
+            appId: "1:55041929575:web:72ca541e3667d646c1bfc2"
+        };
+
+        let fbAuth = null, fbDb = null;
+        let CLOUD  = false;          // true once signed in + Firestore reachable
+        let currentUser = null;
+        let cloudCache = {};         // in-memory mirror of Firestore patient docs
+
+        function initFirebase() {
+            if (typeof firebase === 'undefined') {
+                console.warn('Firebase SDK not loaded — running in local-only mode');
+                return;
+            }
+            try {
+                firebase.initializeApp(FIREBASE_CONFIG);
+                fbAuth = firebase.auth();
+                fbDb   = firebase.firestore();
+                fbAuth.onAuthStateChanged(onAuthChanged);
+            } catch (e) {
+                console.warn('Firebase init failed — local-only mode', e);
+            }
+        }
+
+        async function signInWithGoogle() {
+            if (!fbAuth) { alert('雲端服務尚未就緒，請稍後再試。'); return; }
+            try {
+                const provider = new firebase.auth.GoogleAuthProvider();
+                await fbAuth.signInWithPopup(provider);
+            } catch (e) {
+                console.error('Sign-in failed', e);
+                alert('登入失敗：' + (e.message || e));
+            }
+        }
+
+        async function signOutUser() {
+            if (fbAuth) await fbAuth.signOut();
+        }
+
+        async function onAuthChanged(user) {
+            currentUser = user;
+            if (user) {
+                // Verify Firestore access (allowlist is enforced by security rules)
+                try {
+                    await loadCloudSnapshots();      // throws if not authorized
+                    CLOUD = true;
+                    await migrateLocalToCloud();     // one-time push of any local-only data
+                    renderTable();
+                } catch (e) {
+                    CLOUD = false;
+                    console.warn('Cloud access denied (not on allowlist?)', e);
+                    if (e && (e.code === 'permission-denied')) {
+                        alert('此 Google 帳號未被授權存取雲端資料。\n如需開通，請聯絡管理者將您的 email 加入白名單。');
+                        await fbAuth.signOut();
+                    }
+                }
+            } else {
+                CLOUD = false;
+            }
+            updateAuthUI();
+        }
+
+        function updateAuthUI() {
+            const btn = document.getElementById('authBtn');
+            const badge = document.getElementById('cloudBadge');
+            if (!btn) return;
+            if (currentUser && CLOUD) {
+                btn.innerText = '登出';
+                btn.title = currentUser.email;
+                if (badge) badge.innerHTML = '<span class="sync-badge sync-ok">☁ 雲端同步</span>';
+            } else if (currentUser && !CLOUD) {
+                btn.innerText = '登入 Google';
+                if (badge) badge.innerHTML = '<span class="sync-badge sync-warn">未授權</span>';
+            } else {
+                btn.innerText = '登入 Google';
+                btn.title = '登入以啟用跨裝置雲端記錄';
+                if (badge) badge.innerHTML = '<span class="sync-badge sync-off">本機記錄</span>';
+            }
+        }
+
+        function toggleAuth() {
+            if (currentUser && CLOUD) signOutUser();
+            else signInWithGoogle();
+        }
+
+        // Firestore doc IDs can't contain '/'; sanitize the patientKey.
+        const encodeKey = k => k.replace(/\//g, '_');
+
+        // Load all patient tracking docs from Firestore into the in-memory store.
+        async function loadCloudSnapshots() {
+            const snap = await fbDb.collection('patients').get();
+            const data = {};
+            snap.forEach(doc => {
+                const d = doc.data() || {};
+                data[doc.id] = { history: d.history || [], actualLaborTime: d.actualLaborTime || '' };
+            });
+            cloudCache = data;
+        }
+
+        // One-time merge: push any local-only snapshots up to the cloud so data
+        // recorded before sign-in (or on another device) isn't lost. Union by time.
+        async function migrateLocalToCloud() {
+            let local = {};
+            try { local = JSON.parse(localStorage.getItem(SNAP_KEY) || '{}'); } catch(e) {}
+            const tasks = [];
+            Object.keys(local).forEach(k => {
+                const ek = encodeKey(k);
+                const loc = local[k] || { history: [], actualLaborTime: '' };
+                const cloud = cloudCache[ek] || { history: [], actualLaborTime: '' };
+                // Merge histories by unique timestamp
+                const seen = new Set(cloud.history.map(h => h.time));
+                let merged = cloud.history.slice();
+                let changed = false;
+                loc.history.forEach(h => { if (!seen.has(h.time)) { merged.push(h); changed = true; } });
+                merged.sort((a,b) => new Date(a.time) - new Date(b.time));
+                const actual = cloud.actualLaborTime || loc.actualLaborTime || '';
+                if (changed || actual !== cloud.actualLaborTime) {
+                    const rec = { history: merged, actualLaborTime: actual, updatedAt: new Date().toISOString() };
+                    cloudCache[ek] = { history: merged, actualLaborTime: actual };
+                    tasks.push(fbDb.collection('patients').doc(ek).set(rec, { merge: true }));
+                }
+            });
+            if (tasks.length) await Promise.all(tasks);
+        }
 
         // ── Utilities ────────────────────────────────────────────────────────
 
@@ -816,13 +961,43 @@
 
         const SNAP_KEY = 'ob_snapshots_v1';
 
+        let memSnaps = null;         // live in-memory store for LOCAL mode
+
+        // Source of truth (live reference, mutable by callers):
+        //   cloud mode → cloudCache (keyed by sanitized patientKey)
+        //   local mode → memSnaps  (lazy-loaded from localStorage)
+        // encodeKey only changes '/', which patientKeys effectively never
+        // contain, so keys are interchangeable in practice.
         function allSnapshots() {
-            try { return JSON.parse(localStorage.getItem(SNAP_KEY) || '{}'); }
-            catch(e) { return {}; }
+            if (CLOUD) return cloudCache;
+            if (memSnaps === null) {
+                try { memSnaps = JSON.parse(localStorage.getItem(SNAP_KEY) || '{}'); }
+                catch(e) { memSnaps = {}; }
+            }
+            return memSnaps;
         }
 
+        // Whole-object save. Persists every patient to the active backend.
         function saveAllSnapshots(data) {
-            localStorage.setItem(SNAP_KEY, JSON.stringify(data));
+            if (CLOUD) { cloudCache = data; }
+            else        { memSnaps   = data; localStorage.setItem(SNAP_KEY, JSON.stringify(data)); }
+            Object.keys(data).forEach(k => persistPatient(k));
+        }
+
+        // Persist a single patient's tracking doc to the active backend.
+        function persistPatient(k) {
+            const store = allSnapshots();
+            const rec = store[k] || store[encodeKey(k)];
+            if (!rec) return;
+            if (CLOUD && fbDb) {
+                fbDb.collection('patients').doc(encodeKey(k))
+                    .set({ history: rec.history || [],
+                           actualLaborTime: rec.actualLaborTime || '',
+                           updatedAt: new Date().toISOString() }, { merge: true })
+                    .catch(e => console.warn('Cloud save failed for', k, e));
+            } else {
+                localStorage.setItem(SNAP_KEY, JSON.stringify(store));
+            }
         }
 
         function takeSnapshot(p) {
@@ -865,7 +1040,7 @@
                 v4Hours:      v4h, v4AbsTime:    abs(v4h),
             });
 
-            saveAllSnapshots(snaps);
+            persistPatient(k);
         }
 
         function autoSnapshot() { patients.forEach(p => takeSnapshot(p)); }
@@ -888,7 +1063,7 @@
             const snaps = allSnapshots();
             if (!snaps[k]) snaps[k] = { history: [], actualLaborTime: '' };
             snaps[k].actualLaborTime = value;
-            saveAllSnapshots(snaps);
+            persistPatient(k);
         }
 
         // ── Export training data ──────────────────────────────────────────────
@@ -1287,6 +1462,8 @@
 
         // ── Boot ──────────────────────────────────────────────────────────────
         if (!HAS_OWN_BACKEND) updateSyncStatus(false);
+        initFirebase();
+        updateAuthUI();
         loadData();
     </script>
 
