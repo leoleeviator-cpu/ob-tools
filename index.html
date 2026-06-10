@@ -110,11 +110,21 @@
         }
 
         .legend {
-            margin-top: 10px; padding: 8px 12px;
-            background: #fce4ec; border-radius: 6px;
-            font-size: 11px; color: #880e4f; line-height: 1.8;
+            padding: 8px 12px;
+            font-size: 11px; line-height: 1.8;
         }
-        .legend strong { color: #d81b60; }
+        .legend-models {
+            margin-top: 10px;
+            background: #fce4ec; color: #880e4f;
+            border-radius: 6px 6px 0 0;
+        }
+        .legend-models strong { color: #d81b60; }
+        .legend-notes {
+            margin-top: 2px;
+            background: #e8eaf6; color: #37474f;
+            border-radius: 0 0 6px 6px;
+        }
+        .legend-notes strong { color: #283593; }
 
         .footer-info {
             margin-top: 16px; padding: 10px; text-align: center;
@@ -424,14 +434,16 @@
         </table>
     </div>
 
-    <div class="legend">
+    <div class="legend legend-models">
         <strong>🟣 簡氏 v1</strong>：簡醫師原始公式，傾向高估。
         <strong>🔴 新版 v2</strong>：Zhang 2010＋ACOG 2024 三段式公式。
         <strong>🟢 快產程 v3</strong>：適合產程進展<u>較快</u>者，預測快產最準。
-        <strong>🔵 慢產程 v4</strong>：適合產程進展<u>較慢</u>者，預測慢產偏差最小。<br>
+        <strong>🔵 慢產程 v4</strong>：適合產程進展<u>較慢</u>者，預測慢產偏差最小。
+    </div>
+    <div class="legend legend-notes">
         ※ 以 15 名產婦、153 筆內診資料驗證。子宮頸開 <strong>≥3 公分</strong>後較準（誤差約 1–2 小時）；
-        潛伏期（&lt;3 公分）變異大，請以「時間區間」參考、勿視為精確時刻。<br>
-        <strong>已出院</strong>：記錄人員已將其從名單移除，此處保留供歷史比對。
+        潛伏期（&lt;3 公分）變異大，請以「時間區間」參考、勿視為精確時刻。
+        ｜ <strong>已出院</strong>：記錄人員已將其從名單移除，此處保留供歷史比對。
     </div>
 
     <div class="footer-info">
@@ -1149,8 +1161,10 @@
                     <td class="col-leo   display-only">${isArchived ? '<span style="color:#ccc">—</span>' : leoEstimate(p)}</td>
                     <td class="col-v3    display-only">${isArchived ? '<span style="color:#ccc">—</span>' : leoV3Estimate(p)}</td>
                     <td class="col-v4    display-only">
-                        ${isArchived ? '<span style="color:#ccc">—</span>' : leoV4Estimate(p)}
-                        <br><button class="btn-history" onclick="toggleHistory(${i})">📊 記錄</button>
+                        <div style="display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap">
+                            <span>${isArchived ? '<span style="color:#ccc">—</span>' : leoV4Estimate(p)}</span>
+                            <button class="btn-history" onclick="toggleHistory(${i})">📊 記錄</button>
+                        </div>
                     </td>
                     <td class="edit-only"><button class="btn-delete" onclick="deleteRow(${i})">刪除</button></td>
                 `;
@@ -1182,8 +1196,9 @@
                 if (leoCell)   leoCell.innerHTML   = archived ? dash : leoEstimate(patients[index]);
                 if (v3Cell)    v3Cell.innerHTML    = archived ? dash : leoV3Estimate(patients[index]);
                 if (v4Cell) {
-                    const histBtn = '<br><button class="btn-history" onclick="toggleHistory(' + index + ')">📊 記錄</button>';
-                    v4Cell.innerHTML = (archived ? dash : leoV4Estimate(patients[index])) + histBtn;
+                    const pred = archived ? dash : leoV4Estimate(patients[index]);
+                    const histBtn = `<button class="btn-history" onclick="toggleHistory(${index})">📊 記錄</button>`;
+                    v4Cell.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap"><span>${pred}</span>${histBtn}</div>`;
                 }
             }
         }
