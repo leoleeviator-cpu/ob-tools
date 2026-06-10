@@ -56,15 +56,17 @@
         .col-simon { background-color: #f3e5f5; color: #6a1b9a; font-weight: bold; min-width: 135px; font-size: 11px; }
         .col-leo   { background-color: #fff0f5; color: var(--accent-color); font-weight: bold; min-width: 145px; font-size: 11px; }
         .col-v3    { background-color: #e8f5e9; color: #1b5e20; font-weight: bold; min-width: 145px; font-size: 11px; }
+        .col-v4    { background-color: #e0f2f1; color: #00695c; font-weight: bold; min-width: 150px; font-size: 11px; }
         th.col-simon { background-color: #9c27b0; }
         th.col-leo   { background-color: #e91e63; }
         th.col-v3    { background-color: #2e7d32; }
+        th.col-v4    { background-color: #00897b; }
 
         .flag-col { width: 36px; }
 
         /* Archived (deleted by Simon) rows */
         tr.archived-row td { background-color: #fafafa; color: #bbb; }
-        tr.archived-row .col-simon, tr.archived-row .col-leo, tr.archived-row .col-v3 { color: #bbb; background-color: #f5f5f5; }
+        tr.archived-row .col-simon, tr.archived-row .col-leo, tr.archived-row .col-v3, tr.archived-row .col-v4 { color: #bbb; background-color: #f5f5f5; }
 
         .badge-archived {
             display: inline-block; font-size: 10px; font-weight: bold;
@@ -128,6 +130,7 @@
         .history-table .col-simon { background-color: #f3e5f5; color: #6a1b9a; }
         .history-table .col-leo   { background-color: #fff0f5; color: var(--accent-color); }
         .history-table .col-v3    { background-color: #e8f5e9; color: #1b5e20; }
+        .history-table .col-v4    { background-color: #e0f2f1; color: #00695c; }
         .btn-history { background: #f8bbd0; color: #880e4f; padding: 2px 8px; font-size: 10px; border-radius: 3px; cursor: pointer; border: none; font-weight: bold; margin-top: 3px; }
 
         /* Setup notice */
@@ -184,6 +187,7 @@
                     <th class="col-simon display-only">Simon 預測 v1</th>
                     <th class="col-leo   display-only">新版預測 v2</th>
                     <th class="col-v3    display-only">實證預測 v3</th>
+                    <th class="col-v4    display-only">實證預測 v4 ★</th>
                     <th class="edit-only" style="width:50px">操作</th>
                 </tr>
             </thead>
@@ -414,8 +418,10 @@
     <div class="legend">
         <strong>🟣 Simon v1</strong>：原版 Friedman-based 公式（無 Epi/Ind/PROM）。
         <strong>🔴 新版 v2</strong>：Zhang 2010 中位數 + ACOG 2024 三段式（含 Epi/Ind/PROM 調整）。
-        <strong>🟢 實證 v3</strong>：以本院 8 名產婦 94 筆內診實測資料擬合之對數線性模型
-        （留一交叉驗證 MAE 2.1 小時、偏差 −0.1 小時，已校正 v2 系統性高估）。
+        <strong>🟢 實證 v3</strong>：以第一批 8 名產婦資料擬合之對數線性模型（樣本較單一）。
+        <strong>🔵 實證 v4 ★</strong>：以兩批共 15 名產婦、153 筆內診實測資料重新擬合
+        （留一交叉驗證 MAE 4.3 小時、偏差 +0.2 小時；RMSE 最低、各族群偏差最平衡，為目前建議值）。
+        子宮頸 ≥3 公分後誤差約 1.5–2 小時，潛伏期（&lt;3 公分）變異大，請以區間參考。
         <strong>已出院</strong>：Simon 已從名單刪除，此處保留作歷史比對。
     </div>
 
@@ -726,33 +732,40 @@
         //  labels, so v3 is a base curve. Intervention badges are still shown
         //  for reference but do not yet shift the v3 estimate.
         //
-        const V3 = { a: 3.2759, b: -0.33468, c: -1.17288, d: -0.02429 };
+        //  v4 (below) refits the SAME functional form on a combined 15-patient
+        //  / 153-exam dataset (Cohorts A+B). It corrects v3's under-estimation on
+        //  slower labors — leave-one-patient-out CV MAE 4.27 h, bias +0.24 h, and
+        //  the best RMSE of all four models. See REPORT_model_comparison.md.
+        //
+        const V3 = { a: 3.2759,  b: -0.33468, c: -1.17288, d: -0.02429 };
+        const V4 = { a: 3.25928, b: -0.29182, c: -1.65748, d: -0.14138 };
 
-        function leoV3Hours(p) {
+        // Generic exp-model: hours = exp(a + b·dil + c·eff/100 + d·station)
+        function expModelHours(coef, p) {
             const dil     = parseFloat(p.dilation);
             const eff     = Math.min(100, Math.max(0, parseFloat(p.effacement) || 0));
             const station = parseFloat(p.station) || 0;
-
             if (isNaN(dil) || dil < 0) return null;
             if (dil >= 10) return 0;
-
-            const h = Math.exp(V3.a + V3.b * dil + V3.c * (eff / 100) + V3.d * station);
-            return Math.max(0.1, h);
+            return Math.max(0.1, Math.exp(coef.a + coef.b * dil + coef.c * (eff / 100) + coef.d * station));
         }
 
-        function leoV3Estimate(p) {
-            const h = leoV3Hours(p);
+        function expModelEstimate(coef, p) {
+            const h = expModelHours(coef, p);
             if (h === null) return "--:--";
             if (h === 0)    return "已全開";
-
             const flags = [
                 boolParse(p.epidural)  ? '<span class="flag-badge flag-epi">Epi</span>'   : '',
                 boolParse(p.induction) ? '<span class="flag-badge flag-ind">Ind</span>'   : '',
                 boolParse(p.prom)      ? '<span class="flag-badge flag-prom">PROM</span>' : '',
             ].join('');
-
             return formatEstimate(h, p.assessedAt) + (flags ? `<br><small>${flags}</small>` : '');
         }
+
+        const leoV3Hours    = p => expModelHours(V3, p);
+        const leoV3Estimate = p => expModelEstimate(V3, p);
+        const leoV4Hours    = p => expModelHours(V4, p);
+        const leoV4Estimate = p => expModelEstimate(V4, p);
 
         // Shared formatter: hours → HH:MM (today/明/後/date) + (Xh)
         // refStr: per-patient assessedAt ISO string (falls back to rawUpdateStr)
@@ -817,6 +830,7 @@
             const sh  = simonHours(p);
             const lh  = leoHours(p);
             const vh  = leoV3Hours(p);
+            const v4h = leoV4Hours(p);
             const abs = h => (h && h > 0) ? new Date(ref.getTime() + h * 3600000).toISOString() : null;
 
             data.history.push({
@@ -824,9 +838,10 @@
                 dilation:     p.dilation,   effacement: p.effacement,
                 station:      p.station,    epidural:   p.epidural,
                 induction:    p.induction,  prom:       p.prom,
-                simonHours:   sh, simonAbsTime: abs(sh),
-                leoHours:     lh, leoAbsTime:   abs(lh),
-                v3Hours:      vh, v3AbsTime:    abs(vh),
+                simonHours:   sh,  simonAbsTime: abs(sh),
+                leoHours:     lh,  leoAbsTime:   abs(lh),
+                v3Hours:      vh,  v3AbsTime:    abs(vh),
+                v4Hours:      v4h, v4AbsTime:    abs(v4h),
             });
 
             saveAllSnapshots(snaps);
@@ -894,6 +909,8 @@
                         leo_err_h: errH(s.leoHours, s.leoAbsTime) === '' ? '' : errH(s.leoHours, s.leoAbsTime).toFixed(2),
                         v3_pred_h: (s.v3Hours == null ? '' : s.v3Hours.toFixed(2)),
                         v3_err_h: errH(s.v3Hours, s.v3AbsTime) === '' ? '' : errH(s.v3Hours, s.v3AbsTime).toFixed(2),
+                        v4_pred_h: (s.v4Hours == null ? '' : s.v4Hours.toFixed(2)),
+                        v4_err_h: errH(s.v4Hours, s.v4AbsTime) === '' ? '' : errH(s.v4Hours, s.v4AbsTime).toFixed(2),
                     });
                 });
             });
@@ -988,10 +1005,11 @@
                     <td class="col-simon">${cell(snap.simonHours, snap.simonAbsTime)}</td>
                     <td class="col-leo">${cell(snap.leoHours, snap.leoAbsTime)}</td>
                     <td class="col-v3">${cell(snap.v3Hours, snap.v3AbsTime)}</td>
+                    <td class="col-v4">${cell(snap.v4Hours, snap.v4AbsTime)}</td>
                 </tr>`;
             });
 
-            if (!rows) rows = `<tr><td colspan="8" style="color:#999;text-align:center;padding:8px">
+            if (!rows) rows = `<tr><td colspan="9" style="color:#999;text-align:center;padding:8px">
                 尚無評估記錄（資料變動時自動記錄）</td></tr>`;
 
             const actualDisplay = actualTime
@@ -1011,6 +1029,7 @@
                         <th class="col-simon">Simon v1 預測</th>
                         <th class="col-leo">Leo v2 預測</th>
                         <th class="col-v3">實證 v3 預測</th>
+                        <th class="col-v4">實證 v4 預測 ★</th>
                     </tr></thead>
                     <tbody>${rows}</tbody>
                 </table>
@@ -1107,8 +1126,9 @@
                     </td>
                     <td class="col-simon display-only">${isArchived ? '<span style="color:#ccc">—</span>' : simonEstimate(p)}</td>
                     <td class="col-leo   display-only">${isArchived ? '<span style="color:#ccc">—</span>' : leoEstimate(p)}</td>
-                    <td class="col-v3    display-only">
-                        ${isArchived ? '<span style="color:#ccc">—</span>' : leoV3Estimate(p)}
+                    <td class="col-v3    display-only">${isArchived ? '<span style="color:#ccc">—</span>' : leoV3Estimate(p)}</td>
+                    <td class="col-v4    display-only">
+                        ${isArchived ? '<span style="color:#ccc">—</span>' : leoV4Estimate(p)}
                         <br><button class="btn-history" onclick="toggleHistory(${i})">📊 記錄</button>
                     </td>
                     <td class="edit-only"><button class="btn-delete" onclick="deleteRow(${i})">刪除</button></td>
@@ -1119,7 +1139,7 @@
                 histTr.id = `histRow_${i}`;
                 histTr.className = 'history-row';
                 histTr.style.display = 'none';
-                histTr.innerHTML = `<td colspan="14"><div id="histPanel_${i}">${renderHistoryPanel(p, i)}</div></td>`;
+                histTr.innerHTML = `<td colspan="15"><div id="histPanel_${i}">${renderHistoryPanel(p, i)}</div></td>`;
                 tbody.appendChild(histTr);
             });
         }
@@ -1134,12 +1154,15 @@
                 const simonCell = row.querySelector('.col-simon');
                 const leoCell   = row.querySelector('.col-leo');
                 const v3Cell    = row.querySelector('.col-v3');
+                const v4Cell    = row.querySelector('.col-v4');
                 const archived  = patients[index].deletedBySimon;
-                if (simonCell) simonCell.innerHTML = archived ? '<span style="color:#ccc">—</span>' : simonEstimate(patients[index]);
-                if (leoCell)   leoCell.innerHTML   = archived ? '<span style="color:#ccc">—</span>' : leoEstimate(patients[index]);
-                if (v3Cell) {
+                const dash      = '<span style="color:#ccc">—</span>';
+                if (simonCell) simonCell.innerHTML = archived ? dash : simonEstimate(patients[index]);
+                if (leoCell)   leoCell.innerHTML   = archived ? dash : leoEstimate(patients[index]);
+                if (v3Cell)    v3Cell.innerHTML    = archived ? dash : leoV3Estimate(patients[index]);
+                if (v4Cell) {
                     const histBtn = '<br><button class="btn-history" onclick="toggleHistory(' + index + ')">📊 記錄</button>';
-                    v3Cell.innerHTML = (archived ? '<span style="color:#ccc">—</span>' : leoV3Estimate(patients[index])) + histBtn;
+                    v4Cell.innerHTML = (archived ? dash : leoV4Estimate(patients[index])) + histBtn;
                 }
             }
         }
