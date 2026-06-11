@@ -55,19 +55,21 @@
         /* Prediction columns */
         .col-simon { background-color: #f3e5f5; color: #6a1b9a; font-weight: bold; min-width: 135px; font-size: 11px; }
         .col-leo   { background-color: #fff0f5; color: var(--accent-color); font-weight: bold; min-width: 145px; font-size: 11px; }
-        .col-v3    { background-color: #e8f5e9; color: #1b5e20; font-weight: bold; min-width: 145px; font-size: 11px; }
-        .col-v4    { background-color: #e0f2f1; color: #00695c; font-weight: bold; min-width: 150px; font-size: 11px; }
+        .col-v3    { background-color: #e8f5e9; color: #1b5e20; font-weight: bold; min-width: 120px; font-size: 11px; }
+        .col-v4    { background-color: #e0f2f1; color: #00695c; font-weight: bold; min-width: 120px; font-size: 11px; }
+        .col-range { background-color: #e0f4f1; color: #004d40; font-weight: bold; min-width: 185px; font-size: 11px; }
         /* Prediction-column HEADERS: strong, distinct, high-contrast */
         th.col-simon { background-color: #6a1b9a; color: #fff; }
         th.col-leo   { background-color: #ad1457; color: #fff; }
         th.col-v3    { background-color: #1b5e20; color: #fff; }
         th.col-v4    { background-color: #004d40; color: #fff; }
+        th.col-range { background-color: #004d40; color: #fff; }
 
         .flag-col { width: 36px; }
 
         /* Archived (deleted by Simon) rows */
         tr.archived-row td { background-color: #fafafa; color: #bbb; }
-        tr.archived-row .col-simon, tr.archived-row .col-leo, tr.archived-row .col-v3, tr.archived-row .col-v4 { color: #bbb; background-color: #f5f5f5; }
+        tr.archived-row .col-simon, tr.archived-row .col-leo, tr.archived-row .col-v3, tr.archived-row .col-v4, tr.archived-row .col-range { color: #bbb; background-color: #f5f5f5; }
 
         .badge-archived {
             display: inline-block; font-size: 10px; font-weight: bold;
@@ -142,6 +144,7 @@
         .history-table .col-leo   { background-color: #fff0f5; color: var(--accent-color); }
         .history-table .col-v3    { background-color: #e8f5e9; color: #1b5e20; }
         .history-table .col-v4    { background-color: #e0f2f1; color: #00695c; }
+        .history-table .col-range { background-color: #e0f4f1; color: #004d40; }
         .btn-history { background: #f8bbd0; color: #880e4f; padding: 2px 8px; font-size: 10px; border-radius: 3px; cursor: pointer; border: none; font-weight: bold; margin-top: 3px; }
 
         /* Setup notice */
@@ -190,7 +193,7 @@
     </div>
 
     <button class="btn-add edit-only" onclick="addRow()">+ 新增產婦資料</button>
-    <button class="btn-clear edit-only" id="clearArchived" onclick="clearArchivedRows()" style="display:none">🗑 清除已出院記錄</button>
+    <button class="btn-clear edit-only" id="clearArchived" onclick="clearArchivedRows()" style="display:none">🗑 清除已分娩記錄</button>
 
     <div class="table-container">
         <table>
@@ -198,7 +201,7 @@
                 <tr>
                     <th style="width:62px">待產室</th>
                     <th style="width:72px">姓名</th>
-                    <th style="width:52px">Para</th>
+                    <th style="width:64px">Parity</th>
                     <th style="width:42px">Dil</th>
                     <th style="width:42px">Eff%</th>
                     <th style="width:55px">Station</th>
@@ -207,9 +210,9 @@
                     <th class="flag-col" title="Labor induction">Ind</th>
                     <th class="flag-col" title="Premature rupture of membranes">PROM</th>
                     <th class="col-simon display-only">簡氏預測 v1</th>
-                    <th class="col-leo   display-only">新版預測 v2</th>
-                    <th class="col-v3    display-only">快產程預測 v3</th>
-                    <th class="col-v4    display-only">慢產程預測 v4</th>
+                    <th class="col-leo   display-only">新版 (介入修正) v2</th>
+                    <th class="col-range display-only">新版產程區間預測</th>
+                    <th style="width:50px">📊 記錄</th>
                     <th class="edit-only" style="width:50px">操作</th>
                 </tr>
             </thead>
@@ -438,15 +441,14 @@
     </div>
 
     <div class="legend legend-models">
-        <strong>🟣 簡氏 v1</strong>：簡醫師原始公式，傾向高估。
-        <strong>🔴 新版 v2</strong>：Zhang 2010＋ACOG 2024 三段式公式。
-        <strong>🟢 快產程 v3</strong>：適合產程進展<u>較快</u>者，預測快產最準。
-        <strong>🔵 慢產程 v4</strong>：適合產程進展<u>較慢</u>者，預測慢產偏差最小。
+        <strong>🟣 簡氏 v1</strong>：原作原始公式，傾向高估。
+        <strong>🔴 新版 (介入修正) v2</strong>：Zhang 2010＋ACOG 2024 文獻公式，含 Epi／Ind／PROM 修正因子。
+        <strong>🔵 新版產程區間預測</strong>：以本院實際資料擬合（15 名產婦、153 筆）；「快」為樂觀估計，「慢」為保守估計，實際分娩時間預期落於兩者之間。
     </div>
     <div class="legend legend-notes">
         ※ 以 15 名產婦、153 筆內診資料驗證。子宮頸開 <strong>≥3 公分</strong>後較準（誤差約 1–2 小時）；
         潛伏期（&lt;3 公分）變異大，請以「時間區間」參考、勿視為精確時刻。
-        ｜ <strong>已出院</strong>：記錄人員已將其從名單移除，此處保留供歷史比對。
+        ｜ <strong>已分娩</strong>：記錄人員已將其從名單移除，此處保留供歷史比對。
     </div>
 
     <div class="footer-info">
@@ -959,6 +961,43 @@
         const leoV4Hours    = p => expModelHours(V4, p);
         const leoV4Estimate = p => expModelEstimate(V4, p);
 
+        // Returns just the day-label + HH:MM for a predicted time (no hours suffix)
+        function formatETA(totalHours, refStr) {
+            const ref     = parseToDate(refStr || rawUpdateStr);
+            const estDate = new Date(ref.getTime() + totalHours * 3600000);
+            const refDay  = new Date(ref);     refDay.setHours(0,0,0,0);
+            const estDay  = new Date(estDate); estDay.setHours(0,0,0,0);
+            const diff    = Math.round((estDay - refDay) / 86400000);
+            let label = '';
+            if      (diff === 1) label = '(明) ';
+            else if (diff === 2) label = '(後) ';
+            else if (diff  >  2) label = `(${estDate.getMonth()+1}/${estDate.getDate()}) `;
+            return `${label}${String(estDate.getHours()).padStart(2,'0')}:${String(estDate.getMinutes()).padStart(2,'0')}`;
+        }
+
+        // Merged v3–v4 range cell: "early – late (Xh–Yh)"
+        function rangeEstimate(p) {
+            const v3h = leoV3Hours(p);
+            const v4h = leoV4Hours(p);
+            if (v3h === null && v4h === null) return '--:--';
+            if (v3h === 0 || v4h === 0) return '已全開';
+            if (v3h === null) return leoV4Estimate(p);
+            if (v4h === null) return leoV3Estimate(p);
+            const flags = [
+                boolParse(p.epidural)  ? '<span class="flag-badge flag-epi">Epi</span>'   : '',
+                boolParse(p.induction) ? '<span class="flag-badge flag-ind">Ind</span>'   : '',
+                boolParse(p.prom)      ? '<span class="flag-badge flag-prom">PROM</span>' : '',
+            ].join('');
+            const early = formatETA(v3h, p.assessedAt);
+            const late  = formatETA(v4h, p.assessedAt);
+            return `<div style="line-height:1.9;text-align:center">`
+                 + `<span style="color:#1b5e20">快 ${early} <small>(${v3h.toFixed(1)}h)</small></span>`
+                 + `<hr style="border:none;border-top:1px dashed #b0bec5;margin:2px 4px">`
+                 + `<span style="color:#004d40">慢 ${late} <small>(${v4h.toFixed(1)}h)</small></span>`
+                 + (flags ? `<br><small>${flags}</small>` : '')
+                 + `</div>`;
+        }
+
         // Shared formatter: hours → HH:MM (today/明/後/date) + (Xh)
         // refStr: per-patient assessedAt ISO string (falls back to rawUpdateStr)
         function formatEstimate(totalHours, refStr) {
@@ -1226,6 +1265,16 @@
                 return `${fmtAbsTime(new Date(absTime))} (${hours.toFixed(1)}h)`;
             };
 
+            // Merged v3–v4 range cell for history panel
+            const rangeHistCell = (v3h, v3Abs, v4h, v4Abs) => {
+                if (!v3h && !v4h) return '--';
+                if (v3h === 0 || v4h === 0) return '已全開';
+                const early = v3Abs ? fmtAbsTime(new Date(v3Abs)) : '--';
+                const late  = v4Abs ? fmtAbsTime(new Date(v4Abs)) : '--';
+                return `<span style="color:#1b5e20">快 ${early} (${v3h.toFixed(1)}h)</span><br>`
+                     + `<span style="color:#004d40">慢 ${late} (${v4h.toFixed(1)}h)</span>`;
+            };
+
             let rows = '';
             data.history.forEach(snap => {
                 const flags = [
@@ -1240,12 +1289,11 @@
                     <td>${flags}</td>
                     <td class="col-simon">${cell(snap.simonHours, snap.simonAbsTime)}</td>
                     <td class="col-leo">${cell(snap.leoHours, snap.leoAbsTime)}</td>
-                    <td class="col-v3">${cell(snap.v3Hours, snap.v3AbsTime)}</td>
-                    <td class="col-v4">${cell(snap.v4Hours, snap.v4AbsTime)}</td>
+                    <td class="col-range">${rangeHistCell(snap.v3Hours, snap.v3AbsTime, snap.v4Hours, snap.v4AbsTime)}</td>
                 </tr>`;
             });
 
-            if (!rows) rows = `<tr><td colspan="9" style="color:#999;text-align:center;padding:8px">
+            if (!rows) rows = `<tr><td colspan="8" style="color:#999;text-align:center;padding:8px">
                 尚無評估記錄（資料變動時自動記錄）</td></tr>`;
 
             return `<div class="history-panel">
@@ -1258,8 +1306,7 @@
                         <th>評估時間</th><th>Dil</th><th>Eff%</th><th>Sta.</th><th>旗標</th>
                         <th class="col-simon">簡氏 v1</th>
                         <th class="col-leo">新版 v2</th>
-                        <th class="col-v3">快產程 v3</th>
-                        <th class="col-v4">慢產程 v4</th>
+                        <th class="col-range">區間預測 v3–v4</th>
                     </tr></thead>
                     <tbody>${rows}</tbody>
                 </table>
@@ -1284,7 +1331,7 @@
             const archivedInfo  = document.getElementById('archivedInfo');
             if (archivedCount > 0) {
                 archivedInfo.style.display = 'block';
-                archivedInfo.innerText = `📁 已出院保留記錄：${archivedCount} 筆`;
+                archivedInfo.innerText = `📁 已分娩保留記錄：${archivedCount} 筆`;
                 document.getElementById('clearArchived').style.display = 'block';
             } else {
                 archivedInfo.style.display = 'none';
@@ -1303,7 +1350,7 @@
                 if (isArchived) tr.classList.add('archived-row');
 
                 const nameDisplay = isArchived
-                    ? `${val(p.name)} <span class="badge-archived">已出院</span>`
+                    ? `${val(p.name)} <span class="badge-archived">已分娩</span>`
                     : (isNew ? `${val(p.name)} <span class="badge-new">新</span>` : val(p.name));
 
                 tr.innerHTML = `
@@ -1349,12 +1396,9 @@
                     </td>
                     <td class="col-simon display-only">${isArchived ? '<span style="color:#ccc">—</span>' : simonEstimate(p)}</td>
                     <td class="col-leo   display-only">${isArchived ? '<span style="color:#ccc">—</span>' : leoEstimate(p)}</td>
-                    <td class="col-v3    display-only">${isArchived ? '<span style="color:#ccc">—</span>' : leoV3Estimate(p)}</td>
-                    <td class="col-v4    display-only">
-                        <div style="display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap">
-                            <span>${isArchived ? '<span style="color:#ccc">—</span>' : leoV4Estimate(p)}</span>
-                            <button class="btn-history" onclick="toggleHistory(${i})">📊 記錄</button>
-                        </div>
+                    <td class="col-range display-only">${isArchived ? '<span style="color:#ccc">—</span>' : rangeEstimate(p)}</td>
+                    <td style="text-align:center;vertical-align:middle">
+                        <button class="btn-history" onclick="toggleHistory(${i})">記錄</button>
                     </td>
                     <td class="edit-only"><button class="btn-delete" onclick="deleteRow(${i})">刪除</button></td>
                 `;
@@ -1378,17 +1422,13 @@
             if (row) {
                 const simonCell = row.querySelector('.col-simon');
                 const leoCell   = row.querySelector('.col-leo');
-                const v3Cell    = row.querySelector('.col-v3');
-                const v4Cell    = row.querySelector('.col-v4');
+                const rangeCell = row.querySelector('.col-range');
                 const archived  = patients[index].deletedBySimon;
                 const dash      = '<span style="color:#ccc">—</span>';
                 if (simonCell) simonCell.innerHTML = archived ? dash : simonEstimate(patients[index]);
                 if (leoCell)   leoCell.innerHTML   = archived ? dash : leoEstimate(patients[index]);
-                if (v3Cell)    v3Cell.innerHTML    = archived ? dash : leoV3Estimate(patients[index]);
-                if (v4Cell) {
-                    const pred = archived ? dash : leoV4Estimate(patients[index]);
-                    const histBtn = `<button class="btn-history" onclick="toggleHistory(${index})">📊 記錄</button>`;
-                    v4Cell.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap"><span>${pred}</span>${histBtn}</div>`;
+                if (rangeCell) {
+                    rangeCell.innerHTML = archived ? dash : rangeEstimate(patients[index]);
                 }
             }
         }
@@ -1422,7 +1462,7 @@
         }
 
         function clearArchivedRows() {
-            if (!confirm("確定清除所有已出院記錄？此操作將從您的名單中永久移除。")) return;
+            if (!confirm("確定清除所有已分娩記錄？此操作將從您的名單中永久移除。")) return;
             patients = patients.filter(p => !p.deletedBySimon);
             renderTable();
             if (HAS_OWN_BACKEND) silentSave();
@@ -1475,11 +1515,42 @@
             }
         }
 
+        // ── Midnight auto-cleanup ─────────────────────────────────────────────
+        //
+        //  Each day at 00:00, silently remove 已分娩 (deletedBySimon) patients
+        //  from the visible board — same as clicking "清除已分娩記錄" manually.
+        //  Firestore snapshot records are NOT deleted (preserved for model training).
+        //
+        const CLEANUP_KEY = 'ob_last_cleanup_date';
+
+        function runDailyCleanup() {
+            const today = new Date().toISOString().slice(0, 10);   // "YYYY-MM-DD"
+            if (localStorage.getItem(CLEANUP_KEY) === today) return;
+            localStorage.setItem(CLEANUP_KEY, today);
+            const before = patients.length;
+            patients = patients.filter(p => !p.deletedBySimon);
+            if (patients.length < before) {
+                renderTable();
+                if (HAS_OWN_BACKEND) silentSave();
+            }
+        }
+
+        function scheduleMidnightCleanup() {
+            runDailyCleanup();                           // run immediately on load
+            const now = new Date();
+            const midnight = new Date(now);
+            midnight.setHours(24, 0, 5, 0);             // 00:00:05 next day
+            setTimeout(function tick() {
+                runDailyCleanup();
+                setTimeout(tick, 86400000);              // reschedule every 24 h
+            }, midnight - now);
+        }
+
         // ── Boot ──────────────────────────────────────────────────────────────
         if (!HAS_OWN_BACKEND) updateSyncStatus(false);
         initFirebase();
         updateCloudBadge();
-        loadData();
+        loadData().then(() => scheduleMidnightCleanup());
     </script>
 
 
