@@ -220,6 +220,7 @@
                     <th class="col-leo   display-only">新版 (介入修正) v2</th>
                     <th class="col-range display-only">新版產程區間預測</th>
                     <th style="width:50px">📊 記錄</th>
+                    <th style="width:56px">已分娩</th>
                     <th class="edit-only" style="width:50px">操作</th>
                 </tr>
             </thead>
@@ -1377,7 +1378,7 @@
 
                 const nameDisplay = isArchived
                     ? `${val(p.name)} <span class="badge-archived">已分娩</span>`
-                    : (fromSimon ? `${val(p.name)} <span class="badge-simon">經 Simon</span>`
+                    : (fromSimon ? `${val(p.name)} <span class="badge-simon">簡氏</span>`
                       : (isNew ? `${val(p.name)} <span class="badge-new">新</span>` : val(p.name)));
 
                 tr.innerHTML = `
@@ -1424,8 +1425,10 @@
                     <td class="col-simon display-only">${isArchived ? '<span style="color:#ccc">—</span>' : simonEstimate(p)}</td>
                     <td class="col-leo   display-only">${isArchived ? '<span style="color:#ccc">—</span>' : leoEstimate(p)}</td>
                     <td class="col-range display-only">${isArchived ? '<span style="color:#ccc">—</span>' : rangeEstimate(p)}</td>
-                    <td style="text-align:center;vertical-align:middle;white-space:nowrap">
-                        <button class="btn-history" onclick="toggleHistory(${i})">記錄</button><br>
+                    <td style="text-align:center;vertical-align:middle">
+                        <button class="btn-history" onclick="toggleHistory(${i})">記錄</button>
+                    </td>
+                    <td style="text-align:center;vertical-align:middle">
                         ${isArchived
                             ? `<button class="btn-restore" onclick="restorePatient(${i})">↩ 復原</button>`
                             : `<button class="btn-done" onclick="markDelivered(${i})">✔ 已分娩</button>`}
@@ -1438,7 +1441,7 @@
                 histTr.id = `histRow_${i}`;
                 histTr.className = 'history-row';
                 histTr.style.display = 'none';
-                histTr.innerHTML = `<td colspan="15"><div id="histPanel_${i}">${renderHistoryPanel(p, i)}</div></td>`;
+                histTr.innerHTML = `<td colspan="16"><div id="histPanel_${i}">${renderHistoryPanel(p, i)}</div></td>`;
                 tbody.appendChild(histTr);
             });
         }
