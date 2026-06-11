@@ -530,6 +530,10 @@
                     await loadCloudSnapshots();
                     CLOUD = true;
                     await migrateLocalToCloud();   // push any local-only data up once
+                    // Re-anchor assessedAt with cloud snapshots: the initial loadData()
+                    // may have run before Firebase auth completed (local mode), so
+                    // patients got assessedAt = rawUpdateStr instead of the true anchor.
+                    patients.forEach(p => { p.assessedAt = resolveAssessedAt(p); });
                     renderTable();
                 } catch (e) {
                     CLOUD = false;
@@ -1076,14 +1080,17 @@
         function autoSnapshot() { patients.forEach(p => takeSnapshot(p)); }
 
         // Canonical signature of a patient's clinical state. Normalizes across
-        // storage quirks (boolean false vs undefined vs 'N', number vs string)
-        // so "did the data really change?" is decided consistently everywhere.
-        // Without this, a format mismatch falsely reads as a change and the
-        // estimate re-anchors to the (drifting) global 最後內診 time on every refresh.
+        // storage quirks (boolean false vs undefined vs 'N', number vs string,
+        // "80%" vs "80", "+2" vs "2") so "did the data really change?" is decided
+        // consistently. Without this, a format mismatch falsely reads as a change
+        // and the estimate re-anchors to the (drifting) global 最後內診 time on
+        // every Simon refresh/renewal.
         function clinicalSig(o) {
-            const n = v => (v === null || v === undefined) ? '' : String(v).trim();
+            // Use parseFloat for numeric fields: strips %, +, units, trailing zeros
+            // so "80%"==="80", "+2"==="2", "7.0"==="7" all compare equal.
+            const num = v => { const f = parseFloat(v); return isNaN(f) ? '' : String(f); };
             return [
-                n(o.dilation), n(o.effacement), n(o.station),
+                num(o.dilation), num(o.effacement), num(o.station),
                 boolParse(o.epidural)  ? '1' : '0',
                 boolParse(o.induction) ? '1' : '0',
                 boolParse(o.prom)      ? '1' : '0'
