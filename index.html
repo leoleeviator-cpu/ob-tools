@@ -81,6 +81,13 @@
             padding: 1px 5px; border-radius: 3px;
             background: #e3f2fd; color: #1565c0;
         }
+        .badge-simon {
+            display: inline-block; font-size: 10px; font-weight: bold;
+            padding: 1px 5px; border-radius: 3px;
+            background: #ede7f6; color: #6a1b9a;
+        }
+        .btn-done    { background: #aed581; color: #33691e; padding: 2px 8px; font-size: 10px; border-radius: 3px; cursor: pointer; border: none; font-weight: bold; margin-top: 3px; }
+        .btn-restore { background: #ffe082; color: #795548; padding: 2px 8px; font-size: 10px; border-radius: 3px; cursor: pointer; border: none; font-weight: bold; margin-top: 3px; }
 
         .edit-only { display: none; }
         body.edit-mode .edit-only { display: table-cell; }
@@ -213,6 +220,7 @@
                     <th class="col-leo   display-only">新版 (介入修正) v2</th>
                     <th class="col-range display-only">新版產程區間預測</th>
                     <th style="width:50px">📊 記錄</th>
+                    <th style="width:56px">已分娩</th>
                     <th class="edit-only" style="width:50px">操作</th>
                 </tr>
             </thead>
@@ -670,14 +678,26 @@
         const patientKey = p =>
             ((p.name || '') + '|' + (p.room || '')).trim().toLowerCase();
 
+        // A patient is archived (off the active board) if delivered here OR
+        // removed by Simon (the latter only applies to Simon-origin patients).
+        const isArchivedPatient = p => !!(p && (p.delivered || p.deletedBySimon));
+
         // ── Patient Merge ─────────────────────────────────────────────────────
         //
-        //  Strategy:
-        //   1. Start from own saved patients (preserves extra fields + archived flags)
-        //   2. Overlay clinical updates from Simon's current list
-        //   3. Mark any patient absent from Simon's list as deletedBySimon = true
-        //   4. Add genuinely new patients from Simon that we've never seen
+        //  Strategy (this site = primary record, Simon = read-only backup):
+        //   1. Start from own saved patients (the authoritative local list)
+        //   2. For patients also in Simon's list: overlay Simon's clinical fields
+        //      ONLY if not yet edited here (editedHere); otherwise this site wins
+        //   3. Add genuinely new patients arriving via Simon's backup site
+        //   4. Archive Simon-removed patients ONLY when they originated from Simon
         //
+        //  NOTE (2026-06): this site is now the PRIMARY record. Simon's site is a
+        //  read-only BACKUP source — it only *adds* patients that aren't already
+        //  here (someone who forgot the old site is retired). Once a patient has
+        //  been edited here (editedHere), this site always wins and Simon can no
+        //  longer overwrite them. Simon's removal only archives patients that
+        //  originated from Simon (source==='simon'); locally-entered patients are
+        //  never archived by Simon's absence.
         function mergePatients(simonList, myList) {
             const myMap = new Map();
             myList.forEach(p => myMap.set(patientKey(p), p));
@@ -687,35 +707,41 @@
             simonList.forEach(sp => {
                 const k = patientKey(sp);
                 if (myMap.has(k)) {
-                    // Update clinical fields from Simon; preserve our extra fields
                     const mp = myMap.get(k);
-                    mp.room = sp.room; mp.name = sp.name; mp.para = sp.para;
-                    mp.dilation = sp.dilation; mp.effacement = sp.effacement;
-                    mp.station = sp.station; mp.vs = sp.vs;
-                    mp.deletedBySimon = false;
+                    // This site wins once the patient has been touched here.
+                    // Otherwise let Simon's (backup-site) edits flow through.
+                    if (!mp.editedHere) {
+                        mp.room = sp.room; mp.name = sp.name; mp.para = sp.para;
+                        mp.dilation = sp.dilation; mp.effacement = sp.effacement;
+                        mp.station = sp.station; mp.vs = sp.vs;
+                    }
+                    mp.deletedBySimon = false;   // present in Simon again → clear Simon-archive
                 } else {
-                    // New patient we haven't seen before
+                    // Genuinely new patient arriving via Simon's backup site
                     myMap.set(k, {
                         ...sp,
                         epidural: false, induction: false, prom: false,
-                        deletedBySimon: false, _new: true,
+                        deletedBySimon: false, _new: true, source: 'simon',
                         assessedAt: parseToDate(rawUpdateStr).toISOString()
                     });
                 }
             });
 
-            // Mark patients Simon has removed
+            // Simon-removal archiving applies ONLY to Simon-origin patients.
+            // Locally-entered patients persist even though Simon never lists them.
             myList.forEach(p => {
                 if (!simonKeys.has(patientKey(p))) {
-                    p.deletedBySimon = true;
+                    const src = p.source || 'simon';   // legacy rows default to simon-origin
+                    if (src === 'simon') p.deletedBySimon = true;
                 }
             });
 
-            // Active patients first, archived at bottom
+            // Active patients first, archived (delivered / Simon-removed) at bottom
             const result = Array.from(myMap.values());
             result.sort((a, b) => {
-                if (!!a.deletedBySimon === !!b.deletedBySimon) return 0;
-                return a.deletedBySimon ? 1 : -1;
+                const aa = isArchivedPatient(a), bb = isArchivedPatient(b);
+                if (aa === bb) return 0;
+                return aa ? 1 : -1;
             });
 
             return result;
@@ -1065,7 +1091,7 @@
         }
 
         function takeSnapshot(p) {
-            if (p.deletedBySimon) return;
+            if (isArchivedPatient(p)) return;
             const dil = parseFloat(p.dilation);
             if (isNaN(dil) || p.dilation === '' || p.dilation === undefined) return;
 
@@ -1327,7 +1353,7 @@
                 rawUpdateStr === "無紀錄" ? "無紀錄" : formatDisplayTime(parseToDate(rawUpdateStr));
 
             // Archived row count
-            const archivedCount = patients.filter(p => p.deletedBySimon).length;
+            const archivedCount = patients.filter(isArchivedPatient).length;
             const archivedInfo  = document.getElementById('archivedInfo');
             if (archivedCount > 0) {
                 archivedInfo.style.display = 'block';
@@ -1344,14 +1370,16 @@
             patients.forEach((p, i) => {
                 const tr = document.createElement('tr');
                 tr.id = `mainRow_${i}`;
-                const isArchived = !!p.deletedBySimon;
+                const isArchived = isArchivedPatient(p);
                 const isNew      = !!p._new;
+                const fromSimon  = isNew && p.source === 'simon';
 
                 if (isArchived) tr.classList.add('archived-row');
 
                 const nameDisplay = isArchived
                     ? `${val(p.name)} <span class="badge-archived">已分娩</span>`
-                    : (isNew ? `${val(p.name)} <span class="badge-new">新</span>` : val(p.name));
+                    : (fromSimon ? `${val(p.name)} <span class="badge-simon">簡氏</span>`
+                      : (isNew ? `${val(p.name)} <span class="badge-new">新</span>` : val(p.name)));
 
                 tr.innerHTML = `
                     <td>
@@ -1400,6 +1428,11 @@
                     <td style="text-align:center;vertical-align:middle">
                         <button class="btn-history" onclick="toggleHistory(${i})">記錄</button>
                     </td>
+                    <td style="text-align:center;vertical-align:middle">
+                        ${isArchived
+                            ? `<button class="btn-restore" onclick="restorePatient(${i})">↩ 復原</button>`
+                            : `<button class="btn-done" onclick="markDelivered(${i})">✔ 已分娩</button>`}
+                    </td>
                     <td class="edit-only"><button class="btn-delete" onclick="deleteRow(${i})">刪除</button></td>
                 `;
                 tbody.appendChild(tr);
@@ -1408,7 +1441,7 @@
                 histTr.id = `histRow_${i}`;
                 histTr.className = 'history-row';
                 histTr.style.display = 'none';
-                histTr.innerHTML = `<td colspan="15"><div id="histPanel_${i}">${renderHistoryPanel(p, i)}</div></td>`;
+                histTr.innerHTML = `<td colspan="16"><div id="histPanel_${i}">${renderHistoryPanel(p, i)}</div></td>`;
                 tbody.appendChild(histTr);
             });
         }
@@ -1417,13 +1450,16 @@
 
         function updateField(index, field, value) {
             patients[index][field] = value;
+            // Editing here claims the patient locally: this site now wins, so
+            // Simon's backup site can no longer overwrite these fields.
+            patients[index].editedHere = true;
             // Live-update prediction cells without full re-render
             const row = document.getElementById(`mainRow_${index}`);
             if (row) {
                 const simonCell = row.querySelector('.col-simon');
                 const leoCell   = row.querySelector('.col-leo');
                 const rangeCell = row.querySelector('.col-range');
-                const archived  = patients[index].deletedBySimon;
+                const archived  = isArchivedPatient(patients[index]);
                 const dash      = '<span style="color:#ccc">—</span>';
                 if (simonCell) simonCell.innerHTML = archived ? dash : simonEstimate(patients[index]);
                 if (leoCell)   leoCell.innerHTML   = archived ? dash : leoEstimate(patients[index]);
@@ -1463,7 +1499,32 @@
 
         function clearArchivedRows() {
             if (!confirm("確定清除所有已分娩記錄？此操作將從您的名單中永久移除。")) return;
-            patients = patients.filter(p => !p.deletedBySimon);
+            patients = patients.filter(p => !isArchivedPatient(p));
+            renderTable();
+            if (HAS_OWN_BACKEND) silentSave();
+        }
+
+        // Manually mark a patient as delivered → moves them to the bottom and off
+        // the active board. Firestore history is kept for model training.
+        function markDelivered(index) {
+            const p = patients[index];
+            if (!p) return;
+            if (!confirm(`確定將「${p.name || '此產婦'}」標記為已分娩？`)) return;
+            p.delivered = true;
+            p.editedHere = true;
+            renderTable();
+            if (HAS_OWN_BACKEND) silentSave();
+        }
+
+        // Undo an archive (delivered or Simon-removed). Claims the patient locally
+        // so Simon's absence won't immediately re-archive them.
+        function restorePatient(index) {
+            const p = patients[index];
+            if (!p) return;
+            p.delivered = false;
+            p.deletedBySimon = false;
+            p.source = 'local';
+            p.editedHere = true;
             renderTable();
             if (HAS_OWN_BACKEND) silentSave();
         }
@@ -1472,7 +1533,8 @@
             patients.unshift({
                 room: '', name: '', para: '', dilation: '', effacement: '',
                 station: '', vs: '', epidural: false, induction: false, prom: false,
-                deletedBySimon: false, assessedAt: new Date().toISOString()
+                deletedBySimon: false, source: 'local', editedHere: true,
+                assessedAt: new Date().toISOString()
             });
             renderTable();
         }
@@ -1528,7 +1590,7 @@
             if (localStorage.getItem(CLEANUP_KEY) === today) return;
             localStorage.setItem(CLEANUP_KEY, today);
             const before = patients.length;
-            patients = patients.filter(p => !p.deletedBySimon);
+            patients = patients.filter(p => !isArchivedPatient(p));
             if (patients.length < before) {
                 renderTable();
                 if (HAS_OWN_BACKEND) silentSave();
