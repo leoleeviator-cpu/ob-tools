@@ -8,7 +8,7 @@ patient (ID 25723463), and tests whether a parity term improves the model.*
 | Set | Patients | Usable exams (dil<10) | Notes |
 |-----|----------|----------------------|-------|
 | Previous (cohorts A+B) | 15 | 141 | now labelled with **parity** (11× P0, 3× P1, 1× P2) |
-| New (ID 25723463) | 1 | 21 | **extreme prolonged latent**: ~40 h at 2 cm, then 3 cm → birth in <2 h. Parity not provided. |
+| New (ID 25723463) | 1 | 21 | **extreme prolonged latent**: ~40 h at 2 cm, then 3 cm → birth in <2 h. **Parity P0** (nulliparous), confirmed. |
 
 Only **4 of 15** prior patients are multiparous (parity ≥ 1) — a very thin
 multipara sample.
@@ -49,6 +49,10 @@ multipara multiplier:   0.58×  (all data)  vs  0.31×  (≥3 cm)   ← swings w
 
 15 patients / 4 multiparas is simply too thin to re-fit a clinical algorithm
 responsibly.
+
+## Decision (2026-06-11)
+**Hold v5.** New patient confirmed **P0** and added to the dataset. v4 stays
+live; revisit a parity-aware v5 once enough multiparous cases accumulate.
 
 ## Recommendation
 1. **Keep v4 live unchanged** for now.
