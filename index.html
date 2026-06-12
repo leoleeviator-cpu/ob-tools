@@ -1432,7 +1432,7 @@
                     <td class="col-leo   display-only">${isArchived ? '<span style="color:#ccc">—</span>' : leoEstimate(p)}</td>
                     <td class="col-range display-only">${isArchived ? '<span style="color:#ccc">—</span>' : rangeEstimate(p)}</td>
                     <td style="text-align:center;vertical-align:middle">
-                        <button class="${isArchived ? 'btn-history-done' : 'btn-history'}" onclick="${isArchived ? '' : `toggleHistory(${i})`}">記錄</button>
+                        <button class="btn-history" onclick="toggleHistory(${i})">記錄</button>
                     </td>
                     <td style="text-align:center;vertical-align:middle">
                         ${isArchived
