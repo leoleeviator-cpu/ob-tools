@@ -231,7 +231,7 @@
     <div class="legend legend-models">
         <strong>🟣 簡氏 v1</strong>：原作原始公式，傾向高估。
         <strong>🔴 新版 (介入修正) v2</strong>：Zhang 2010＋ACOG 2024 文獻公式，含 Epi／Ind／PROM 修正因子。
-        <strong>🔵 新版產程區間預測</strong>：以本院實際資料擬合（15 名產婦、153 筆）；「快」為樂觀估計，「慢」為保守估計，實際分娩時間預期落於兩者之間。
+        <strong>🔵 新版產程區間預測</strong>：以本院實際資料擬合（累計 27 名產婦、269 筆）。<strong>≥3 公分</strong>採含胎次校正的 v5 與 v4 之中點 ±2 小時區間（涵蓋約 6 成，初產婦約 7 成）；<strong>&lt;3 公分</strong>仍顯示 v3–v4 估計。實際分娩時間預期落於區間內，請勿視為保證。
     </div>
     <div class="legend legend-notes">
         ※ 以 15 名產婦、153 筆內診資料驗證。子宮頸開 <strong>≥3 公分</strong>後較準（誤差約 1–2 小時）；
@@ -827,6 +827,34 @@
         const leoV4Hours    = p => expModelHours(V4, p);
         const leoV4Estimate = p => expModelEstimate(V4, p);
 
+        // Parity helper for v5 (multipara = parity ≥ 1). Unknown/blank parity is
+        // treated as NULLIPARA — the slower, conservative side — so the v5 ×0.46
+        // multipara speed-up is never applied to a patient we can't confirm.
+        function isMultiparaPatient(p) {
+            const s = p.para ? p.para.toString().toLowerCase().trim() : '';
+            if (!s) return false;
+            if (s === '0' || /p\s*0/.test(s) || /para\s*0/.test(s)
+                || s === 'nullipara' || s === 'primipara') return false;
+            return true;
+        }
+
+        // v5-simple: parity-aware refit, valid in the ESTABLISHED phase (≥3 cm).
+        // hours = exp(2.9668 − 0.1533·dil − 1.3625·eff/100 − 0.7833·multipara).
+        // Station dropped (unstable on small multipara n). Pooled 27-pt / 269-exam
+        // LOPO-CV: ≥3cm multipara MAE 3.55→2.79 h. Used only via the range cell as
+        // the fast end of the (v5+v4)/2 ±2h band — never shown as a lone estimate,
+        // which contains its known multipara under-prediction. See
+        // REPORT_v5_refit_2026-06-12.md.
+        const V5 = { a: 2.9668, b_dil: -0.1533, c_eff: -1.3625, e_multi: -0.7833 };
+        function leoV5Hours(p) {
+            const dil = parseFloat(p.dilation);
+            const eff = Math.min(100, Math.max(0, parseFloat(p.effacement) || 0));
+            if (isNaN(dil) || dil < 0) return null;
+            if (dil >= 10) return 0;
+            const multi = isMultiparaPatient(p) ? 1 : 0;
+            return Math.max(0.1, Math.exp(V5.a + V5.b_dil * dil + V5.c_eff * (eff / 100) + V5.e_multi * multi));
+        }
+
         // Day label for a predicted time, relative to TODAY (not the exam time),
         // so staff reading the board now see 今/明/後 correctly. Past or far-off
         // days show the calendar date instead.
@@ -847,21 +875,16 @@
             return `${dayLabel(estDate)}${String(estDate.getHours()).padStart(2,'0')}:${String(estDate.getMinutes()).padStart(2,'0')}`;
         }
 
-        // Merged v3–v4 range cell: "early – late (Xh–Yh)"
-        function rangeEstimate(p) {
-            const v3h = leoV3Hours(p);
-            const v4h = leoV4Hours(p);
-            if (v3h === null && v4h === null) return '--:--';
-            if (v3h === 0 || v4h === 0) return '已全開';
-            if (v3h === null) return leoV4Estimate(p);
-            if (v4h === null) return leoV3Estimate(p);
+        // Shared range-cell renderer: "early – late (loH–hiH h)" + flags.
+        // loH/hiH are hours-to-event for the early (fast) and late (slow) ends.
+        function formatRangeCell(loH, hiH, p) {
             const flags = [
                 boolParse(p.epidural)  ? '<span class="flag-badge flag-epi">Epi</span>'   : '',
                 boolParse(p.induction) ? '<span class="flag-badge flag-ind">Ind</span>'   : '',
                 boolParse(p.prom)      ? '<span class="flag-badge flag-prom">PROM</span>' : '',
             ].join('');
-            const early = formatETA(v3h, p.assessedAt);
-            const late  = formatETA(v4h, p.assessedAt);
+            const early = formatETA(loH, p.assessedAt);
+            const late  = formatETA(hiH, p.assessedAt);
             // Deduplicate day label when both ends fall on the same day:
             // "(明) 01:26 – 02:02" instead of "(明) 01:26 – (明) 02:02"
             const splitETA = s => { const m = s.match(/^(\([^)]+\) )?(.*)/); return [m[1]||'', m[2]]; };
@@ -871,8 +894,31 @@
                 ? `${earlyLabel}${earlyTime} – ${lateTime}`
                 : `${early} – ${late}`;
             return `<span style="white-space:nowrap">${rangeStr}</span>`
-                 + `<br><small style="color:#555">(${v3h.toFixed(1)}–${v4h.toFixed(1)}h)</small>`
+                 + `<br><small style="color:#555">(${loH.toFixed(1)}–${hiH.toFixed(1)}h)</small>`
                  + (flags ? `<br><small>${flags}</small>` : '');
+        }
+
+        // Range cell.
+        //  ≥3 cm (established phase): parity-aware midpoint band — center is the
+        //    (v5 + v4)/2 blend (best RMSE, unbiased; v5 sees parity), displayed as
+        //    center ±2 h. Pooled validation: ~61% coverage (69% nullipara), center
+        //    MAE 2.06 h. Replaces the old razor-thin v3–v4 range (≈6% coverage).
+        //  <3 cm (latent phase): fall back to the v3–v4 range — v5 is not valid
+        //    there and latent-phase timing is irreducibly noisy.
+        function rangeEstimate(p) {
+            const v3h = leoV3Hours(p);
+            const v4h = leoV4Hours(p);
+            if (v3h === null && v4h === null) return '--:--';
+            if (v3h === 0 || v4h === 0) return '已全開';
+            if (v3h === null) return leoV4Estimate(p);
+            if (v4h === null) return leoV3Estimate(p);
+            const dil = parseFloat(p.dilation);
+            const v5h = leoV5Hours(p);
+            if (!isNaN(dil) && dil >= 3 && v5h !== null && v5h !== 0) {
+                const center = (v5h + v4h) / 2;
+                return formatRangeCell(Math.max(0, center - 2), center + 2, p);
+            }
+            return formatRangeCell(v3h, v4h, p);
         }
 
         // Shared formatter: hours → HH:MM (today/明/後/date) + (Xh)
