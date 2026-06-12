@@ -124,7 +124,7 @@
             font-size: 11px; line-height: 1.8;
         }
         .legend-models {
-            margin-top: 10px;
+            margin-top: 28px;
             background: #fce4ec; color: #880e4f;
             border-radius: 6px 6px 0 0;
         }
@@ -207,7 +207,7 @@
             <thead>
                 <tr>
                     <th style="width:62px">待產室</th>
-                    <th style="width:72px">姓名</th>
+                    <th style="width:96px">姓名</th>
                     <th style="width:64px">Parity</th>
                     <th style="width:42px">Dil</th>
                     <th style="width:42px">Eff%</th>
@@ -1354,7 +1354,7 @@
                         <span class="display-only">${val(p.room)}</span>
                         <input class="edit-only" type="text" value="${val(p.room)}" oninput="updateField(${i},'room',this.value)">
                     </td>
-                    <td>
+                    <td style="white-space:nowrap">
                         <span class="display-only">${nameDisplay}</span>
                         <input class="edit-only" type="text" value="${val(p.name)}" oninput="updateField(${i},'name',this.value)">
                     </td>
