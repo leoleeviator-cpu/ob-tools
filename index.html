@@ -1306,20 +1306,20 @@
         // ── Render ────────────────────────────────────────────────────────────
 
         // Header timestamps.
-        //   最後內診 = the most recent exam CHARTED ON THIS SITE (editedHere). This
-        //     site is now primary; Simon is a frozen read-only backup, so his
-        //     last-update clock must NEVER drive this field (it was the source of
-        //     the stuck "yesterday 22:09"). If nobody has charted here yet, show —.
-        //   已更新  = when this view last synced (now).
+        //   最後內診 = the last time any patient's exam data actually changed
+        //     (most recent assessedAt among active patients — local edits stamp NOW,
+        //     Simon-backup patients carry their own last-exam time). Editing a
+        //     cervical-exam field here re-anchors it live (see updateField).
+        //   已更新  = when the user last refreshed / synced this view (now).
         function updateHeaderTimes() {
             let latestExam = null;
             patients.forEach(p => {
-                if (isArchivedPatient(p) || !p.editedHere || !p.assessedAt) return;
+                if (isArchivedPatient(p) || !p.assessedAt) return;
                 const t = parseToDate(p.assessedAt);
                 if (!latestExam || t > latestExam) latestExam = t;
             });
             const lu = document.getElementById('lastUpdate');
-            if (lu) lu.innerText = latestExam ? formatDisplayTime(latestExam) : "尚無本站內診";
+            if (lu) lu.innerText = latestExam ? formatDisplayTime(latestExam) : "—";
             const syncEl = document.getElementById('syncTime');
             if (syncEl) syncEl.innerText = formatDisplayTime(new Date());
         }
