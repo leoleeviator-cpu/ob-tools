@@ -508,6 +508,15 @@
 
             const simonKeys = new Set(simonList.map(patientKey));
 
+            // Keys cleared/deleted here (tombstoned) must NOT be resurrected from
+            // Simon's backup list with his stale data.
+            const store = allSnapshots();
+            const clearedKeys = new Set();
+            Object.keys(store).forEach(sk => {
+                if (store[sk] && store[sk].cleared) clearedKeys.add(encodeKey(sk));
+            });
+            const isClearedKey = k => clearedKeys.has(encodeKey(k));
+
             simonList.forEach(sp => {
                 const k = patientKey(sp);
                 if (myMap.has(k)) {
@@ -520,6 +529,8 @@
                         mp.station = sp.station; mp.vs = sp.vs;
                     }
                     mp.deletedBySimon = false;   // present in Simon again → clear Simon-archive
+                } else if (isClearedKey(k)) {
+                    return;   // tombstoned here → stay gone even though Simon lists her
                 } else {
                     // Genuinely new patient arriving via Simon's backup site
                     myMap.set(k, {
@@ -781,18 +792,24 @@
         const leoV4Hours    = p => expModelHours(V4, p);
         const leoV4Estimate = p => expModelEstimate(V4, p);
 
+        // Day label for a predicted time, relative to TODAY (not the exam time),
+        // so staff reading the board now see 今/明/後 correctly. Past or far-off
+        // days show the calendar date instead.
+        function dayLabel(estDate) {
+            const today  = new Date();        today.setHours(0,0,0,0);
+            const estDay = new Date(estDate); estDay.setHours(0,0,0,0);
+            const diff   = Math.round((estDay - today) / 86400000);
+            if (diff === 0) return '';
+            if (diff === 1) return '(明) ';
+            if (diff === 2) return '(後) ';
+            return `(${estDate.getMonth()+1}/${estDate.getDate()}) `;   // past or >2 days
+        }
+
         // Returns just the day-label + HH:MM for a predicted time (no hours suffix)
         function formatETA(totalHours, refStr) {
             const ref     = parseToDate(refStr || rawUpdateStr);
             const estDate = new Date(ref.getTime() + totalHours * 3600000);
-            const refDay  = new Date(ref);     refDay.setHours(0,0,0,0);
-            const estDay  = new Date(estDate); estDay.setHours(0,0,0,0);
-            const diff    = Math.round((estDay - refDay) / 86400000);
-            let label = '';
-            if      (diff === 1) label = '(明) ';
-            else if (diff === 2) label = '(後) ';
-            else if (diff  >  2) label = `(${estDate.getMonth()+1}/${estDate.getDate()}) `;
-            return `${label}${String(estDate.getHours()).padStart(2,'0')}:${String(estDate.getMinutes()).padStart(2,'0')}`;
+            return `${dayLabel(estDate)}${String(estDate.getHours()).padStart(2,'0')}:${String(estDate.getMinutes()).padStart(2,'0')}`;
         }
 
         // Merged v3–v4 range cell: "early – late (Xh–Yh)"
@@ -828,17 +845,7 @@
         function formatEstimate(totalHours, refStr) {
             const ref    = parseToDate(refStr || rawUpdateStr);
             const estDate = new Date(ref.getTime() + totalHours * 3600000);
-
-            const refDay = new Date(ref);     refDay.setHours(0,0,0,0);
-            const estDay = new Date(estDate); estDay.setHours(0,0,0,0);
-            const diff   = Math.round((estDay - refDay) / 86400000);
-
-            let label = '';
-            if      (diff === 1) label = '(明) ';
-            else if (diff === 2) label = '(後) ';
-            else if (diff  >  2) label = `(${estDate.getMonth()+1}/${estDate.getDate()}) `;
-
-            return `${label}${String(estDate.getHours()).padStart(2,'0')}:${String(estDate.getMinutes()).padStart(2,'0')} (${totalHours.toFixed(1)}h)`;
+            return `${dayLabel(estDate)}${String(estDate.getHours()).padStart(2,'0')}:${String(estDate.getMinutes()).padStart(2,'0')} (${totalHours.toFixed(1)}h)`;
         }
 
         // ── Snapshot & History Tracking ───────────────────────────────────────
