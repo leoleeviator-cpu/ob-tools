@@ -124,7 +124,7 @@
             font-size: 11px; line-height: 1.8;
         }
         .legend-models {
-            margin-top: 10px;
+            margin-top: 28px;
             background: #fce4ec; color: #880e4f;
             border-radius: 6px 6px 0 0;
         }
@@ -207,7 +207,7 @@
             <thead>
                 <tr>
                     <th style="width:62px">待產室</th>
-                    <th style="width:72px">姓名</th>
+                    <th style="width:96px">姓名</th>
                     <th style="width:64px">Parity</th>
                     <th style="width:42px">Dil</th>
                     <th style="width:42px">Eff%</th>
@@ -289,6 +289,8 @@
         let fbAuth = null, fbDb = null;
         let CLOUD  = false;          // true once Firestore is reachable
         let cloudCache = {};         // in-memory mirror of Firestore patient docs
+        let cloudUnsub = null;       // active onSnapshot unsubscribe fn (live sync)
+        let lastSimonPatients = [];  // last Simon list fetched, for no-network rebuilds
 
         // Admin gate for the 🛠 debug/export panel (the rest of the tool is open).
         // Add a colleague's Google email here to grant them export access.
@@ -323,6 +325,7 @@
                     CLOUD = true;
                     await migrateLocalToCloud();   // push any local-only data up once
                     await loadData();              // rebuild the list from Simon + cloud records
+                    subscribeCloud();              // start live cross-device / cross-tab sync
                 } catch (e) {
                     CLOUD = false;
                     console.warn('Cloud unreachable — local mode', e);
@@ -396,24 +399,55 @@
         // Firestore doc IDs can't contain '/'; sanitize the patientKey.
         const encodeKey = k => k.replace(/\//g, '_');
 
+        // Map one Firestore patient doc to the in-memory record shape.
+        function mapCloudDoc(d) {
+            d = d || {};
+            return {
+                history:      d.history || [],
+                delivered:    !!d.delivered,
+                deliveredAt:  d.deliveredAt || null,
+                lastName:     d.lastName || '',
+                lastRoom:     d.lastRoom || '',
+                lastClinical: d.lastClinical || null,
+                work:         d.work || null,      // working patient record (the list)
+                cleared:      !!d.cleared          // tombstone: removed from board
+            };
+        }
+
         // Load all patient tracking docs from Firestore into the in-memory store.
         async function loadCloudSnapshots() {
             const snap = await fbDb.collection('patients').get();
             const data = {};
-            snap.forEach(doc => {
-                const d = doc.data() || {};
-                data[doc.id] = {
-                    history:      d.history || [],
-                    delivered:    !!d.delivered,
-                    deliveredAt:  d.deliveredAt || null,
-                    lastName:     d.lastName || '',
-                    lastRoom:     d.lastRoom || '',
-                    lastClinical: d.lastClinical || null,
-                    work:         d.work || null,      // working patient record (the list)
-                    cleared:      !!d.cleared          // tombstone: removed from board
-                };
-            });
+            snap.forEach(doc => { data[doc.id] = mapCloudDoc(doc.data()); });
             cloudCache = data;
+        }
+
+        // Live cross-device / cross-tab sync. A real-time Firestore listener keeps
+        // cloudCache current and re-renders the board whenever ANY device writes —
+        // without this the cache was frozen at sign-in and edits never propagated.
+        // While a staff member is mid-edit (edit-mode) we refresh cloudCache but
+        // defer the re-render so we don't clobber what they're typing.
+        function subscribeCloud() {
+            if (!fbDb || cloudUnsub) return;
+            cloudUnsub = fbDb.collection('patients').onSnapshot(snap => {
+                const data = {};
+                snap.forEach(doc => { data[doc.id] = mapCloudDoc(doc.data()); });
+                cloudCache = data;
+                const editing = document.getElementById('mainBody').classList.contains('edit-mode');
+                if (!isSaving && !editing) rebuildBoard();
+            }, err => console.warn('Cloud live-sync listener error:', err));
+        }
+
+        // Rebuild the board from the latest cloudCache + last-known Simon list,
+        // WITHOUT any network call or write-back (read-only re-render). Used by the
+        // live listener so remote changes show immediately.
+        function rebuildBoard() {
+            let myPatients = [];
+            try { myPatients = loadCloudPatients(); } catch (e) {}
+            patients = mergePatients(lastSimonPatients, myPatients);
+            applyDeliveredState();
+            patients.forEach(p => { p.assessedAt = resolveAssessedAt(p); });
+            renderTable();
         }
 
         // One-time merge: push any local-only snapshots up to the cloud so data
@@ -574,6 +608,7 @@
                 const simonData = await simonResp.json();
                 const simonPatients = simonData.patients || [];
                 rawUpdateStr = simonData.lastUpdate || "無紀錄";
+                lastSimonPatients = simonPatients;   // cache for live-sync rebuilds
 
                 // Read our own saved list from Firestore (or localStorage fallback)
                 let myPatients = [];
@@ -1305,20 +1340,28 @@
 
         // ── Render ────────────────────────────────────────────────────────────
 
-        function renderTable() {
-            const tbody = document.getElementById('patientTableBody');
-            // 最後內診 = the most recent exam among active patients (advances when
-            // staff record exams here); falls back to Simon's last-update time.
-            let latestExam = (rawUpdateStr && rawUpdateStr !== "無紀錄") ? parseToDate(rawUpdateStr) : null;
+        // Header timestamps.
+        //   最後內診 = the last time any patient's exam data actually changed
+        //     (most recent assessedAt among active patients — local edits stamp NOW,
+        //     Simon-backup patients carry their own last-exam time). Editing a
+        //     cervical-exam field here re-anchors it live (see updateField).
+        //   已更新  = when the user last refreshed / synced this view (now).
+        function updateHeaderTimes() {
+            let latestExam = null;
             patients.forEach(p => {
                 if (isArchivedPatient(p) || !p.assessedAt) return;
                 const t = parseToDate(p.assessedAt);
                 if (!latestExam || t > latestExam) latestExam = t;
             });
-            document.getElementById('lastUpdate').innerText = latestExam ? formatDisplayTime(latestExam) : "無紀錄";
-            // 已更新 = when this view last synced (now).
+            const lu = document.getElementById('lastUpdate');
+            if (lu) lu.innerText = latestExam ? formatDisplayTime(latestExam) : "—";
             const syncEl = document.getElementById('syncTime');
             if (syncEl) syncEl.innerText = formatDisplayTime(new Date());
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('patientTableBody');
+            updateHeaderTimes();
 
             // Archived row count
             const archivedCount = patients.filter(isArchivedPatient).length;
@@ -1354,7 +1397,7 @@
                         <span class="display-only">${val(p.room)}</span>
                         <input class="edit-only" type="text" value="${val(p.room)}" oninput="updateField(${i},'room',this.value)">
                     </td>
-                    <td>
+                    <td style="white-space:nowrap">
                         <span class="display-only">${nameDisplay}</span>
                         <input class="edit-only" type="text" value="${val(p.name)}" oninput="updateField(${i},'name',this.value)">
                     </td>
@@ -1416,11 +1459,21 @@
 
         // ── Edit & Save ───────────────────────────────────────────────────────
 
+        // Fields that constitute a cervical exam — changing any of them is a NEW
+        // exam, so we re-anchor the patient's assessment time to now.
+        const EXAM_FIELDS = ['dilation','effacement','station','epidural','induction','prom'];
+
         function updateField(index, field, value) {
             patients[index][field] = value;
             // Editing here claims the patient locally: this site now wins, so
             // Simon's backup site can no longer overwrite these fields.
             patients[index].editedHere = true;
+            // A clinical change = a fresh exam charted here → stamp it NOW and
+            // refresh 最後內診 live (do not wait for the next sync).
+            if (EXAM_FIELDS.includes(field)) {
+                patients[index].assessedAt = new Date().toISOString();
+                updateHeaderTimes();
+            }
             // Live-update prediction cells without full re-render
             const row = document.getElementById(`mainRow_${index}`);
             if (row) {
