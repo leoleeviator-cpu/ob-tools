@@ -289,6 +289,8 @@
         let fbAuth = null, fbDb = null;
         let CLOUD  = false;          // true once Firestore is reachable
         let cloudCache = {};         // in-memory mirror of Firestore patient docs
+        let cloudUnsub = null;       // active onSnapshot unsubscribe fn (live sync)
+        let lastSimonPatients = [];  // last Simon list fetched, for no-network rebuilds
 
         // Admin gate for the 🛠 debug/export panel (the rest of the tool is open).
         // Add a colleague's Google email here to grant them export access.
@@ -323,6 +325,7 @@
                     CLOUD = true;
                     await migrateLocalToCloud();   // push any local-only data up once
                     await loadData();              // rebuild the list from Simon + cloud records
+                    subscribeCloud();              // start live cross-device / cross-tab sync
                 } catch (e) {
                     CLOUD = false;
                     console.warn('Cloud unreachable — local mode', e);
@@ -396,24 +399,55 @@
         // Firestore doc IDs can't contain '/'; sanitize the patientKey.
         const encodeKey = k => k.replace(/\//g, '_');
 
+        // Map one Firestore patient doc to the in-memory record shape.
+        function mapCloudDoc(d) {
+            d = d || {};
+            return {
+                history:      d.history || [],
+                delivered:    !!d.delivered,
+                deliveredAt:  d.deliveredAt || null,
+                lastName:     d.lastName || '',
+                lastRoom:     d.lastRoom || '',
+                lastClinical: d.lastClinical || null,
+                work:         d.work || null,      // working patient record (the list)
+                cleared:      !!d.cleared          // tombstone: removed from board
+            };
+        }
+
         // Load all patient tracking docs from Firestore into the in-memory store.
         async function loadCloudSnapshots() {
             const snap = await fbDb.collection('patients').get();
             const data = {};
-            snap.forEach(doc => {
-                const d = doc.data() || {};
-                data[doc.id] = {
-                    history:      d.history || [],
-                    delivered:    !!d.delivered,
-                    deliveredAt:  d.deliveredAt || null,
-                    lastName:     d.lastName || '',
-                    lastRoom:     d.lastRoom || '',
-                    lastClinical: d.lastClinical || null,
-                    work:         d.work || null,      // working patient record (the list)
-                    cleared:      !!d.cleared          // tombstone: removed from board
-                };
-            });
+            snap.forEach(doc => { data[doc.id] = mapCloudDoc(doc.data()); });
             cloudCache = data;
+        }
+
+        // Live cross-device / cross-tab sync. A real-time Firestore listener keeps
+        // cloudCache current and re-renders the board whenever ANY device writes —
+        // without this the cache was frozen at sign-in and edits never propagated.
+        // While a staff member is mid-edit (edit-mode) we refresh cloudCache but
+        // defer the re-render so we don't clobber what they're typing.
+        function subscribeCloud() {
+            if (!fbDb || cloudUnsub) return;
+            cloudUnsub = fbDb.collection('patients').onSnapshot(snap => {
+                const data = {};
+                snap.forEach(doc => { data[doc.id] = mapCloudDoc(doc.data()); });
+                cloudCache = data;
+                const editing = document.getElementById('mainBody').classList.contains('edit-mode');
+                if (!isSaving && !editing) rebuildBoard();
+            }, err => console.warn('Cloud live-sync listener error:', err));
+        }
+
+        // Rebuild the board from the latest cloudCache + last-known Simon list,
+        // WITHOUT any network call or write-back (read-only re-render). Used by the
+        // live listener so remote changes show immediately.
+        function rebuildBoard() {
+            let myPatients = [];
+            try { myPatients = loadCloudPatients(); } catch (e) {}
+            patients = mergePatients(lastSimonPatients, myPatients);
+            applyDeliveredState();
+            patients.forEach(p => { p.assessedAt = resolveAssessedAt(p); });
+            renderTable();
         }
 
         // One-time merge: push any local-only snapshots up to the cloud so data
@@ -574,6 +608,7 @@
                 const simonData = await simonResp.json();
                 const simonPatients = simonData.patients || [];
                 rawUpdateStr = simonData.lastUpdate || "無紀錄";
+                lastSimonPatients = simonPatients;   // cache for live-sync rebuilds
 
                 // Read our own saved list from Firestore (or localStorage fallback)
                 let myPatients = [];
