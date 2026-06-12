@@ -86,8 +86,9 @@
             padding: 1px 5px; border-radius: 3px;
             background: #ede7f6; color: #6a1b9a;
         }
-        .btn-done    { background: #aed581; color: #33691e; padding: 2px 8px; font-size: 10px; border-radius: 3px; cursor: pointer; border: none; font-weight: bold; margin-top: 3px; white-space: nowrap; }
-        .btn-restore { background: #ffe082; color: #795548; padding: 2px 8px; font-size: 10px; border-radius: 3px; cursor: pointer; border: none; font-weight: bold; margin-top: 3px; white-space: nowrap; }
+        .btn-not-done    { background: #e57373; color: #fff; padding: 2px 8px; font-size: 10px; border-radius: 3px; cursor: pointer; border: none; font-weight: bold; margin-top: 3px; white-space: nowrap; }
+        .btn-done-complete { background: #66bb6a; color: #fff; padding: 2px 8px; font-size: 10px; border-radius: 3px; cursor: default; border: none; font-weight: bold; margin-top: 3px; white-space: nowrap; }
+        .btn-history-done { background: #e0e0e0; color: #bbb; padding: 2px 8px; font-size: 10px; border-radius: 3px; cursor: default; border: none; font-weight: bold; margin-top: 3px; pointer-events: none; }
 
         .edit-only { display: none; }
         body.edit-mode .edit-only { display: table-cell; }
@@ -220,7 +221,7 @@
                     <th class="col-leo   display-only">新版 (介入修正) v2</th>
                     <th class="col-range display-only">新版產程區間預測</th>
                     <th style="width:50px">📊 記錄</th>
-                    <th style="width:70px">已分娩</th>
+                    <th style="width:78px">完成分娩請按這</th>
                     <th class="edit-only" style="width:50px">操作</th>
                 </tr>
             </thead>
@@ -1431,12 +1432,12 @@
                     <td class="col-leo   display-only">${isArchived ? '<span style="color:#ccc">—</span>' : leoEstimate(p)}</td>
                     <td class="col-range display-only">${isArchived ? '<span style="color:#ccc">—</span>' : rangeEstimate(p)}</td>
                     <td style="text-align:center;vertical-align:middle">
-                        <button class="btn-history" onclick="toggleHistory(${i})">記錄</button>
+                        <button class="${isArchived ? 'btn-history-done' : 'btn-history'}" onclick="${isArchived ? '' : `toggleHistory(${i})`}">記錄</button>
                     </td>
                     <td style="text-align:center;vertical-align:middle">
                         ${isArchived
-                            ? `<button class="btn-restore" onclick="restorePatient(${i})">↩ 復原</button>`
-                            : `<button class="btn-done" onclick="markDelivered(${i})">✔ 已分娩</button>`}
+                            ? `<button class="btn-done-complete">✔ 完成分娩</button>`
+                            : `<button class="btn-not-done" onclick="markDelivered(${i})">尚未分娩</button>`}
                     </td>
                     <td class="edit-only"><button class="btn-delete" onclick="deleteRow(${i})">刪除</button></td>
                 `;
