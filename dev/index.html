@@ -1512,12 +1512,21 @@
 
         // Manually mark a patient as delivered → moves them to the bottom and off
         // the active board. Firestore history is kept for model training.
+        function sortPatients() {
+            patients.sort((a, b) => {
+                const aa = isArchivedPatient(a), bb = isArchivedPatient(b);
+                if (aa === bb) return 0;
+                return aa ? 1 : -1;
+            });
+        }
+
         function markDelivered(index) {
             const p = patients[index];
             if (!p) return;
             if (!confirm(`確定將「${p.name || '此產婦'}」標記為已分娩？`)) return;
             p.delivered = true;
             p.editedHere = true;
+            sortPatients();
             renderTable();
             if (HAS_OWN_BACKEND) silentSave();
         }
