@@ -1,3 +1,8 @@
 .firebase/
 *.log
 node_modules/
+
+# Patient-derived analysis data & scratch — NEVER deploy (repo is public via Firebase Hosting)
+_*.json
+_*.js
+REPORT_*.md
