@@ -167,9 +167,8 @@
 
     <div id="loadingOverlay" style="display: none;">同步資料中...</div>
 
-    <div id="setupNotice" class="setup-notice" style="display: block;">
-        ⚠️ <strong>尚未設定自己的後端</strong>：目前僅從 Simon 的資料庫讀取，修改不會儲存。
-        請將 <code>WRITE_URL</code> 替換為您自己的 Google Apps Script 網址。
+    <div id="setupNotice" class="setup-notice" style="display: none;">
+        ⚠️ <strong>雲端未連線</strong>：目前僅在本機暫存，跨裝置同步暫停，請稍後重新整理。
     </div>
 
     <div class="header">
@@ -225,227 +224,7 @@
                     <th class="edit-only" style="width:50px">操作</th>
                 </tr>
             </thead>
-            <tbody id="patientTableBody"><tr>
-                    <td>
-                        <span class="display-only">61</span>
-                        <input class="edit-only" type="text" value="61" oninput="updateField(0,&#39;room&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">許o涓 <span class="badge-new">新</span></span>
-                        <input class="edit-only" type="text" value="許o涓" oninput="updateField(0,&#39;name&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">G1P0</span>
-                        <input class="edit-only" type="text" value="G1P0" oninput="updateField(0,&#39;para&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">4</span>
-                        <input class="edit-only" type="number" step="0.5" value="4" oninput="updateField(0,&#39;dilation&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">60</span>
-                        <input class="edit-only" type="number" min="0" max="100" value="60" oninput="updateField(0,&#39;effacement&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">-3</span>
-                        <input class="edit-only" type="text" value="-3" oninput="updateField(0,&#39;station&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">柏</span>
-                        <input class="edit-only" type="text" value="柏" oninput="updateField(0,&#39;vs&#39;,this.value)">
-                    </td>
-                    <td class="flag-col">
-                        <span class="display-only">—</span>
-                        <input class="edit-only" type="checkbox" onchange="updateField(0,&#39;epidural&#39;,this.checked)">
-                    </td>
-                    <td class="flag-col">
-                        <span class="display-only">—</span>
-                        <input class="edit-only" type="checkbox" onchange="updateField(0,&#39;induction&#39;,this.checked)">
-                    </td>
-                    <td class="flag-col">
-                        <span class="display-only">—</span>
-                        <input class="edit-only" type="checkbox" onchange="updateField(0,&#39;prom&#39;,this.checked)">
-                    </td>
-                    <td class="col-simon display-only">(明) 14:18 (16.7h)</td>
-                    <td class="col-leo   display-only">(明) 07:18 (9.7h)</td>
-                    <td class="edit-only"><button class="btn-delete" onclick="deleteRow(0)">刪除</button></td>
-                </tr><tr>
-                    <td>
-                        <span class="display-only">62</span>
-                        <input class="edit-only" type="text" value="62" oninput="updateField(1,&#39;room&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">何o臻 <span class="badge-new">新</span></span>
-                        <input class="edit-only" type="text" value="何o臻" oninput="updateField(1,&#39;name&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">G1P0</span>
-                        <input class="edit-only" type="text" value="G1P0" oninput="updateField(1,&#39;para&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">10</span>
-                        <input class="edit-only" type="number" step="0.5" value="10" oninput="updateField(1,&#39;dilation&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">100</span>
-                        <input class="edit-only" type="number" min="0" max="100" value="100" oninput="updateField(1,&#39;effacement&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">0</span>
-                        <input class="edit-only" type="text" value="0" oninput="updateField(1,&#39;station&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">銘</span>
-                        <input class="edit-only" type="text" value="銘" oninput="updateField(1,&#39;vs&#39;,this.value)">
-                    </td>
-                    <td class="flag-col">
-                        <span class="display-only">—</span>
-                        <input class="edit-only" type="checkbox" onchange="updateField(1,&#39;epidural&#39;,this.checked)">
-                    </td>
-                    <td class="flag-col">
-                        <span class="display-only">—</span>
-                        <input class="edit-only" type="checkbox" onchange="updateField(1,&#39;induction&#39;,this.checked)">
-                    </td>
-                    <td class="flag-col">
-                        <span class="display-only">—</span>
-                        <input class="edit-only" type="checkbox" onchange="updateField(1,&#39;prom&#39;,this.checked)">
-                    </td>
-                    <td class="col-simon display-only">已全開</td>
-                    <td class="col-leo   display-only">已全開</td>
-                    <td class="edit-only"><button class="btn-delete" onclick="deleteRow(1)">刪除</button></td>
-                </tr><tr>
-                    <td>
-                        <span class="display-only">72</span>
-                        <input class="edit-only" type="text" value="72" oninput="updateField(2,&#39;room&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">楊o禎 <span class="badge-new">新</span></span>
-                        <input class="edit-only" type="text" value="楊o禎" oninput="updateField(2,&#39;name&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">G2P1</span>
-                        <input class="edit-only" type="text" value="G2P1" oninput="updateField(2,&#39;para&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">2</span>
-                        <input class="edit-only" type="number" step="0.5" value="2" oninput="updateField(2,&#39;dilation&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">30</span>
-                        <input class="edit-only" type="number" min="0" max="100" value="30" oninput="updateField(2,&#39;effacement&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">-3</span>
-                        <input class="edit-only" type="text" value="-3" oninput="updateField(2,&#39;station&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">文</span>
-                        <input class="edit-only" type="text" value="文" oninput="updateField(2,&#39;vs&#39;,this.value)">
-                    </td>
-                    <td class="flag-col">
-                        <span class="display-only">—</span>
-                        <input class="edit-only" type="checkbox" onchange="updateField(2,&#39;epidural&#39;,this.checked)">
-                    </td>
-                    <td class="flag-col">
-                        <span class="display-only">—</span>
-                        <input class="edit-only" type="checkbox" onchange="updateField(2,&#39;induction&#39;,this.checked)">
-                    </td>
-                    <td class="flag-col">
-                        <span class="display-only">—</span>
-                        <input class="edit-only" type="checkbox" onchange="updateField(2,&#39;prom&#39;,this.checked)">
-                    </td>
-                    <td class="col-simon display-only">(後) 00:18 (26.7h)</td>
-                    <td class="col-leo   display-only">(明) 07:49 (10.2h)</td>
-                    <td class="edit-only"><button class="btn-delete" onclick="deleteRow(2)">刪除</button></td>
-                </tr><tr>
-                    <td>
-                        <span class="display-only">81</span>
-                        <input class="edit-only" type="text" value="81" oninput="updateField(3,&#39;room&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">張o鈴 <span class="badge-new">新</span></span>
-                        <input class="edit-only" type="text" value="張o鈴" oninput="updateField(3,&#39;name&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">G1P0</span>
-                        <input class="edit-only" type="text" value="G1P0" oninput="updateField(3,&#39;para&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">2</span>
-                        <input class="edit-only" type="number" step="0.5" value="2" oninput="updateField(3,&#39;dilation&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">20</span>
-                        <input class="edit-only" type="number" min="0" max="100" value="20" oninput="updateField(3,&#39;effacement&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">-3</span>
-                        <input class="edit-only" type="text" value="-3" oninput="updateField(3,&#39;station&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">Su</span>
-                        <input class="edit-only" type="text" value="Su" oninput="updateField(3,&#39;vs&#39;,this.value)">
-                    </td>
-                    <td class="flag-col">
-                        <span class="display-only">—</span>
-                        <input class="edit-only" type="checkbox" onchange="updateField(3,&#39;epidural&#39;,this.checked)">
-                    </td>
-                    <td class="flag-col">
-                        <span class="display-only">—</span>
-                        <input class="edit-only" type="checkbox" onchange="updateField(3,&#39;induction&#39;,this.checked)">
-                    </td>
-                    <td class="flag-col">
-                        <span class="display-only">—</span>
-                        <input class="edit-only" type="checkbox" onchange="updateField(3,&#39;prom&#39;,this.checked)">
-                    </td>
-                    <td class="col-simon display-only">(6/12) 01:49 (76.2h)</td>
-                    <td class="col-leo   display-only">(明) 15:38 (18.0h)</td>
-                    <td class="edit-only"><button class="btn-delete" onclick="deleteRow(3)">刪除</button></td>
-                </tr><tr>
-                    <td>
-                        <span class="display-only">83</span>
-                        <input class="edit-only" type="text" value="83" oninput="updateField(4,&#39;room&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">李o萱 <span class="badge-new">新</span></span>
-                        <input class="edit-only" type="text" value="李o萱" oninput="updateField(4,&#39;name&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">G1P0</span>
-                        <input class="edit-only" type="text" value="G1P0" oninput="updateField(4,&#39;para&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">2</span>
-                        <input class="edit-only" type="number" step="0.5" value="2" oninput="updateField(4,&#39;dilation&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">20</span>
-                        <input class="edit-only" type="number" min="0" max="100" value="20" oninput="updateField(4,&#39;effacement&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">-3</span>
-                        <input class="edit-only" type="text" value="-3" oninput="updateField(4,&#39;station&#39;,this.value)">
-                    </td>
-                    <td>
-                        <span class="display-only">銘</span>
-                        <input class="edit-only" type="text" value="銘" oninput="updateField(4,&#39;vs&#39;,this.value)">
-                    </td>
-                    <td class="flag-col">
-                        <span class="display-only">—</span>
-                        <input class="edit-only" type="checkbox" onchange="updateField(4,&#39;epidural&#39;,this.checked)">
-                    </td>
-                    <td class="flag-col">
-                        <span class="display-only">—</span>
-                        <input class="edit-only" type="checkbox" onchange="updateField(4,&#39;induction&#39;,this.checked)">
-                    </td>
-                    <td class="flag-col">
-                        <span class="display-only">—</span>
-                        <input class="edit-only" type="checkbox" onchange="updateField(4,&#39;prom&#39;,this.checked)">
-                    </td>
-                    <td class="col-simon display-only">(6/12) 01:49 (76.2h)</td>
-                    <td class="col-leo   display-only">(明) 15:38 (18.0h)</td>
-                    <td class="edit-only"><button class="btn-delete" onclick="deleteRow(4)">刪除</button></td>
-                </tr></tbody>
+            <tbody id="patientTableBody"></tbody>
         </table>
     </div>
 
@@ -473,15 +252,17 @@
 
     <script>
         // ─────────────────────────────────────────────────────────────────────
-        //  BACKEND URLS
-        //  READ_URL  → Simon's Google Apps Script (read-only, never POST here)
-        //  WRITE_URL → Your own Google Apps Script (read + write)
-        //              Replace "YOUR_GAS_URL_HERE" after you deploy your GAS.
+        //  BACKEND
+        //  READ_URL → Simon's Google Apps Script (read-only BACKUP source).
+        //  The patient list itself is now stored in FIRESTORE (per-patient docs),
+        //  not in a Google Apps Script. The old WRITE_URL GAS was unreliable
+        //  (dropped patients), so it has been retired — see persistWorkingRecord /
+        //  loadCloudPatients below. Firestore + localStorage are always available,
+        //  so HAS_OWN_BACKEND is always true.
         // ─────────────────────────────────────────────────────────────────────
         const READ_URL  = "https://script.google.com/macros/s/AKfycbx2JWTv0js2SU_qHEstb8wejZmty3Y68ptZ_iLu1tokfnlKygQykG-ORAQACAXZQYMsJw/exec";
-        const WRITE_URL = "https://script.google.com/macros/s/AKfycbwn342CjZa1ZPe2D1l2GMBvFWD2y5vXtz2PtqByhbMDmE8_RPI9OoAC_JEMEETMI7Mn/exec";
 
-        const HAS_OWN_BACKEND = !WRITE_URL.includes("YOUR_GAS_URL");
+        const HAS_OWN_BACKEND = true;
 
         let patients     = [];   // merged patient list (Simon + local extras)
         let rawUpdateStr = "";   // Simon's last-update timestamp
@@ -541,8 +322,7 @@
                     await loadCloudSnapshots();
                     CLOUD = true;
                     await migrateLocalToCloud();   // push any local-only data up once
-                    applyDeliveredState();         // re-apply delivered state now cloud is loaded
-                    renderTable();
+                    await loadData();              // rebuild the list from Simon + cloud records
                 } catch (e) {
                     CLOUD = false;
                     console.warn('Cloud unreachable — local mode', e);
@@ -628,7 +408,9 @@
                     deliveredAt:  d.deliveredAt || null,
                     lastName:     d.lastName || '',
                     lastRoom:     d.lastRoom || '',
-                    lastClinical: d.lastClinical || null
+                    lastClinical: d.lastClinical || null,
+                    work:         d.work || null,      // working patient record (the list)
+                    cleared:      !!d.cleared          // tombstone: removed from board
                 };
             });
             cloudCache = data;
@@ -648,12 +430,24 @@
                 let merged = cloud.history.slice();
                 let changed = false;
                 (loc.history || []).forEach(h => { if (!seen.has(h.time)) { merged.push(h); changed = true; } });
-                if (changed) {
+                // Carry up a work record made offline if the cloud doesn't have one yet
+                const pushWork = loc.work && !cloud.work && !cloud.cleared;
+                if (changed || pushWork) {
                     merged.sort((a,b) => new Date(a.time) - new Date(b.time));
-                    // Preserve delivered/identity fields already loaded into cloudCache
-                    cloudCache[ek] = Object.assign({}, cloudCache[ek], { history: merged });
-                    tasks.push(fbDb.collection('patients').doc(ek)
-                        .set({ history: merged, updatedAt: new Date().toISOString() }, { merge: true }));
+                    const upd = Object.assign({}, cloudCache[ek], { history: merged });
+                    const doc = { history: merged, updatedAt: new Date().toISOString() };
+                    if (pushWork) {
+                        upd.work = loc.work; upd.delivered = !!loc.delivered;
+                        upd.deliveredAt = loc.deliveredAt || null; upd.cleared = false;
+                        upd.lastName = loc.lastName || ''; upd.lastRoom = loc.lastRoom || '';
+                        upd.lastClinical = loc.lastClinical || null;
+                        Object.assign(doc, { work: loc.work, delivered: !!loc.delivered,
+                            deliveredAt: loc.deliveredAt || null, cleared: false,
+                            lastName: loc.lastName || '', lastRoom: loc.lastRoom || '',
+                            lastClinical: loc.lastClinical || null });
+                    }
+                    cloudCache[ek] = upd;
+                    tasks.push(fbDb.collection('patients').doc(ek).set(doc, { merge: true }));
                 }
             });
             if (tasks.length) await Promise.all(tasks);
@@ -770,27 +564,20 @@
                 const simonPatients = simonData.patients || [];
                 rawUpdateStr = simonData.lastUpdate || "無紀錄";
 
-                // Read our own saved data (if backend is configured)
+                // Read our own saved list from Firestore (or localStorage fallback)
                 let myPatients = [];
-                if (HAS_OWN_BACKEND) {
-                    try {
-                        const myResp = await fetch(`${WRITE_URL}?t=${Date.now()}`);
-                        const myData = await myResp.json();
-                        myPatients = myData.patients || [];
-                    } catch (e) {
-                        console.log("Own backend empty or unreachable, bootstrapping from Simon");
-                    }
-                }
+                try { myPatients = loadCloudPatients(); }
+                catch (e) { console.log("Local patient store empty, bootstrapping from Simon"); }
 
                 patients = mergePatients(simonPatients, myPatients);
-                // Re-apply Firestore-authoritative delivered state (survives a
-                // flaky WRITE_URL round-trip; rebuilds vanished archived rows)
+                // Re-apply Firestore-authoritative delivered state
+                // (rebuilds archived rows that fell out of both sources)
                 applyDeliveredState();
                 // Lock each patient's prediction reference to last known assessment time
                 patients.forEach(p => { p.assessedAt = resolveAssessedAt(p); });
 
-                // Silently persist the merged state so archived flags survive page reloads
-                if (HAS_OWN_BACKEND) silentSave();
+                // Persist the merged state so the list survives reloads / syncs across devices
+                silentSave();
 
                 renderTable();
                 autoSnapshot();
@@ -804,16 +591,10 @@
             }
         }
 
-        async function silentSave() {
-            if (!HAS_OWN_BACKEND || isSaving) return;
-            try {
-                await fetch(WRITE_URL, {
-                    method: "POST",
-                    body: JSON.stringify({ patients, lastUpdate: formatDisplayTime(new Date()) })
-                });
-            } catch (e) {
-                console.log("Silent save failed:", e);
-            }
+        // Persist every on-board patient's working record to Firestore/localStorage.
+        function silentSave() {
+            try { patients.forEach(persistWorkingRecord); }
+            catch (e) { console.log("Silent save failed:", e); }
         }
 
         function updateSyncStatus(ok) {
@@ -1159,7 +940,7 @@
             const presentKeys = new Set(patients.map(p => encodeKey(patientKey(p))));
             Object.keys(store).forEach(sk => {
                 const rec = store[sk];
-                if (!rec || !rec.delivered) return;
+                if (!rec || !rec.delivered || rec.cleared) return;
                 const ek = encodeKey(sk);
                 if (presentKeys.has(ek)) return;
                 presentKeys.add(ek);
@@ -1175,6 +956,82 @@
                 });
             });
             sortPatients();
+        }
+
+        // ── Patient list persistence (Firestore-backed, replaces WRITE_URL) ───
+        //
+        //  The active patient list lives in the same per-patient Firestore docs:
+        //   doc.work    = working record {room,name,para,clinical,flags,source,editedHere}
+        //   doc.cleared = tombstone (removed from board; history kept for training)
+        //  Reading the list = every doc with a work record that isn't cleared.
+
+        // Build the saved patient list from the active store (cloud or local).
+        function loadCloudPatients() {
+            const store = allSnapshots();
+            const seen = new Set();
+            const out = [];
+            Object.keys(store).forEach(k => {
+                const rec = store[k];
+                if (!rec || !rec.work || rec.cleared) return;
+                const id = patientKey(rec.work);
+                if (seen.has(id)) return;            // guard k/encodeKey duplicates
+                seen.add(id);
+                out.push(Object.assign({}, rec.work, { delivered: !!rec.delivered }));
+            });
+            return out;
+        }
+
+        // Persist one patient's working record to the active backend.
+        function persistWorkingRecord(p) {
+            const k  = patientKey(p);
+            const ek = encodeKey(k);
+            const store = allSnapshots();
+            const rec = store[k] || store[ek] || { history: [] };
+            rec.work = {
+                room: p.room || '', name: p.name || '', para: p.para || '',
+                dilation: p.dilation || '', effacement: p.effacement || '', station: p.station || '',
+                vs: p.vs || '', epidural: !!boolParse(p.epidural),
+                induction: !!boolParse(p.induction), prom: !!boolParse(p.prom),
+                source: p.source || 'simon', editedHere: !!p.editedHere
+            };
+            rec.cleared     = false;
+            rec.delivered   = !!p.delivered;
+            rec.deliveredAt = p.delivered ? (rec.deliveredAt || new Date().toISOString()) : null;
+            rec.lastName    = p.name || rec.lastName || '';
+            rec.lastRoom    = p.room || rec.lastRoom || '';
+            rec.lastClinical = {
+                para: p.para, dilation: p.dilation, effacement: p.effacement,
+                station: p.station, vs: p.vs,
+                epidural: p.epidural, induction: p.induction, prom: p.prom
+            };
+            store[ek] = rec; if (k !== ek) store[k] = rec;
+            if (CLOUD && fbDb) {
+                fbDb.collection('patients').doc(ek).set({
+                    work: rec.work, cleared: false,
+                    delivered: rec.delivered, deliveredAt: rec.deliveredAt,
+                    lastName: rec.lastName, lastRoom: rec.lastRoom, lastClinical: rec.lastClinical,
+                    updatedAt: new Date().toISOString()
+                }, { merge: true }).catch(e => console.warn('work save failed', k, e));
+            } else {
+                localStorage.setItem(SNAP_KEY, JSON.stringify(store));
+            }
+        }
+
+        // Tombstone a patient (清除 / 刪除): drop from the board, KEEP history.
+        function clearPatientRecord(p) {
+            const k  = patientKey(p);
+            const ek = encodeKey(k);
+            const store = allSnapshots();
+            const rec = store[k] || store[ek];
+            if (rec) { rec.cleared = true; rec.delivered = false; rec.work = null; }
+            if (CLOUD && fbDb) {
+                fbDb.collection('patients').doc(ek).set({
+                    cleared: true, delivered: false, work: null,
+                    updatedAt: new Date().toISOString()
+                }, { merge: true }).catch(e => console.warn('clear failed', k, e));
+            } else if (rec) {
+                localStorage.setItem(SNAP_KEY, JSON.stringify(store));
+            }
         }
 
         function takeSnapshot(p) {
@@ -1558,23 +1415,15 @@
 
         async function saveToCloud() {
             if (isSaving) return;
-            if (!HAS_OWN_BACKEND) {
-                alert("請先設定您自己的後端 URL（WRITE_URL），否則無法儲存。");
-                return;
-            }
-
             isSaving = true;
             toggleLoading(true);
 
             try {
-                await fetch(WRITE_URL, {
-                    method: "POST",
-                    body: JSON.stringify({ patients, lastUpdate: formatDisplayTime(new Date()) })
-                });
+                silentSave();                          // write working records to Firestore
                 await new Promise(r => setTimeout(r, 600));
                 isSaving = false;
                 await loadData();
-                alert("雲端同步成功！");
+                alert(CLOUD ? "雲端同步成功！" : "已儲存（本機）。雲端未連線。");
             } catch (e) {
                 console.error("同步失敗:", e);
                 isSaving = false;
@@ -1586,12 +1435,11 @@
 
         function clearArchivedRows() {
             if (!confirm("確定清除所有已分娩記錄？此操作將從您的名單中永久移除。")) return;
-            // Clear the Firestore delivered flag too, or applyDeliveredState would
-            // rebuild these rows on the next load. History snapshots are kept.
-            patients.filter(isArchivedPatient).forEach(p => setDeliveredState(p, false));
+            // Tombstone in Firestore so the rows don't return on next load.
+            // History snapshots are kept for model training.
+            patients.filter(isArchivedPatient).forEach(p => clearPatientRecord(p));
             patients = patients.filter(p => !isArchivedPatient(p));
             renderTable();
-            if (HAS_OWN_BACKEND) silentSave();
         }
 
         // Manually mark a patient as delivered → moves them to the bottom and off
@@ -1643,6 +1491,7 @@
 
         function deleteRow(index) {
             if (confirm("確定刪除？")) {
+                clearPatientRecord(patients[index]);   // tombstone so it won't reload
                 patients.splice(index, 1);
                 renderTable();
             }
