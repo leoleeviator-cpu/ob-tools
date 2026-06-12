@@ -175,7 +175,7 @@
         <div>
             <h1>新產科小工具</h1>
             <div class="info-bar">
-                最後內診/更新：<span id="lastUpdate">2026/6/8 21:38:16</span>
+                最後內診：<span id="lastUpdate">—</span> ｜ 已更新：<span id="syncTime">—</span>
                 <span id="syncStatus"><span class="sync-badge sync-off">僅讀取模式</span></span>
                 <span id="cloudBadge"><span class="sync-badge sync-off">本機記錄</span></span>
             </div>
@@ -1041,6 +1041,13 @@
             }
         }
 
+        // The exam time to anchor a NEW clinical state to:
+        //   edited/entered HERE → now (this site is primary; Simon's clock may be frozen)
+        //   from Simon's backup → Simon's last-update time (rawUpdateStr)
+        function examTimeFor(p) {
+            return p.editedHere ? new Date() : parseToDate(rawUpdateStr);
+        }
+
         function takeSnapshot(p) {
             if (isArchivedPatient(p)) return;
             const dil = parseFloat(p.dilation);
@@ -1056,10 +1063,10 @@
             // Skip if nothing clinically changed since last snapshot
             if (last && clinicalSig(p) === clinicalSig(last)) return;
 
-            // Assessment timestamp = Simon's last-update (最後內診) time — when
-            // the clinical data actually changed, not the page-load time.
-            const now = parseToDate(rawUpdateStr).toISOString();
-            const ref = parseToDate(rawUpdateStr);
+            // Exam timestamp = when the clinical data actually changed (now for
+            // local entries, Simon's time for backup-sourced ones).
+            const ref = examTimeFor(p);
+            const now = ref.toISOString();
             const sh  = simonHours(p);
             const lh  = leoHours(p);
             const vh  = leoV3Hours(p);
@@ -1113,13 +1120,13 @@
             const snaps = allSnapshots();
             const k = patientKey(p);
             const data = snaps[k];
-            if (!data || data.history.length === 0) return parseToDate(rawUpdateStr).toISOString();
+            if (!data || data.history.length === 0) return examTimeFor(p).toISOString();
             const last = data.history[data.history.length - 1];
             // Unchanged data → keep the original anchor time (stable across Simon
             // refreshes). Only a real clinical change re-anchors to the new exam time.
             return clinicalSig(p) === clinicalSig(last)
                 ? last.time
-                : parseToDate(rawUpdateStr).toISOString();
+                : examTimeFor(p).toISOString();
         }
 
         // ── Export tracked data ───────────────────────────────────────────────
@@ -1300,8 +1307,18 @@
 
         function renderTable() {
             const tbody = document.getElementById('patientTableBody');
-            document.getElementById('lastUpdate').innerText =
-                rawUpdateStr === "無紀錄" ? "無紀錄" : formatDisplayTime(parseToDate(rawUpdateStr));
+            // 最後內診 = the most recent exam among active patients (advances when
+            // staff record exams here); falls back to Simon's last-update time.
+            let latestExam = (rawUpdateStr && rawUpdateStr !== "無紀錄") ? parseToDate(rawUpdateStr) : null;
+            patients.forEach(p => {
+                if (isArchivedPatient(p) || !p.assessedAt) return;
+                const t = parseToDate(p.assessedAt);
+                if (!latestExam || t > latestExam) latestExam = t;
+            });
+            document.getElementById('lastUpdate').innerText = latestExam ? formatDisplayTime(latestExam) : "無紀錄";
+            // 已更新 = when this view last synced (now).
+            const syncEl = document.getElementById('syncTime');
+            if (syncEl) syncEl.innerText = formatDisplayTime(new Date());
 
             // Archived row count
             const archivedCount = patients.filter(isArchivedPatient).length;
