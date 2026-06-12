@@ -1016,12 +1016,17 @@
             ].join('');
             const early = formatETA(v3h, p.assessedAt);
             const late  = formatETA(v4h, p.assessedAt);
-            return `<div style="line-height:1.9;text-align:center">`
-                 + `<span style="color:#1b5e20">快 ${early} <small>(${v3h.toFixed(1)}h)</small></span>`
-                 + `<hr style="border:none;border-top:1px dashed #b0bec5;margin:2px 4px">`
-                 + `<span style="color:#004d40">慢 ${late} <small>(${v4h.toFixed(1)}h)</small></span>`
-                 + (flags ? `<br><small>${flags}</small>` : '')
-                 + `</div>`;
+            // Deduplicate day label when both ends fall on the same day:
+            // "(明) 01:26 – 02:02" instead of "(明) 01:26 – (明) 02:02"
+            const splitETA = s => { const m = s.match(/^(\([^)]+\) )?(.*)/); return [m[1]||'', m[2]]; };
+            const [earlyLabel, earlyTime] = splitETA(early);
+            const [lateLabel,  lateTime]  = splitETA(late);
+            const rangeStr = earlyLabel === lateLabel
+                ? `${earlyLabel}${earlyTime} – ${lateTime}`
+                : `${early} – ${late}`;
+            return `<span style="white-space:nowrap">${rangeStr}</span>`
+                 + `<br><small style="color:#555">(${v3h.toFixed(1)}–${v4h.toFixed(1)}h)</small>`
+                 + (flags ? `<br><small>${flags}</small>` : '');
         }
 
         // Shared formatter: hours → HH:MM (today/明/後/date) + (Xh)
@@ -1297,8 +1302,8 @@
                 if (v3h === 0 || v4h === 0) return '已全開';
                 const early = v3Abs ? fmtAbsTime(new Date(v3Abs)) : '--';
                 const late  = v4Abs ? fmtAbsTime(new Date(v4Abs)) : '--';
-                return `<span style="color:#1b5e20">快 ${early} (${v3h.toFixed(1)}h)</span><br>`
-                     + `<span style="color:#004d40">慢 ${late} (${v4h.toFixed(1)}h)</span>`;
+                return `<span style="white-space:nowrap">${early} – ${late}</span>`
+                     + `<br><small style="color:#555">(${v3h.toFixed(1)}–${v4h.toFixed(1)}h)</small>`;
             };
 
             let rows = '';
