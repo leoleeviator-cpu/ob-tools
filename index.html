@@ -541,6 +541,7 @@
                     await loadCloudSnapshots();
                     CLOUD = true;
                     await migrateLocalToCloud();   // push any local-only data up once
+                    applyDeliveredState();         // re-apply delivered state now cloud is loaded
                     renderTable();
                 } catch (e) {
                     CLOUD = false;
@@ -621,7 +622,14 @@
             const data = {};
             snap.forEach(doc => {
                 const d = doc.data() || {};
-                data[doc.id] = { history: d.history || [] };
+                data[doc.id] = {
+                    history:      d.history || [],
+                    delivered:    !!d.delivered,
+                    deliveredAt:  d.deliveredAt || null,
+                    lastName:     d.lastName || '',
+                    lastRoom:     d.lastRoom || '',
+                    lastClinical: d.lastClinical || null
+                };
             });
             cloudCache = data;
         }
@@ -642,7 +650,8 @@
                 (loc.history || []).forEach(h => { if (!seen.has(h.time)) { merged.push(h); changed = true; } });
                 if (changed) {
                     merged.sort((a,b) => new Date(a.time) - new Date(b.time));
-                    cloudCache[ek] = { history: merged };
+                    // Preserve delivered/identity fields already loaded into cloudCache
+                    cloudCache[ek] = Object.assign({}, cloudCache[ek], { history: merged });
                     tasks.push(fbDb.collection('patients').doc(ek)
                         .set({ history: merged, updatedAt: new Date().toISOString() }, { merge: true }));
                 }
@@ -774,6 +783,9 @@
                 }
 
                 patients = mergePatients(simonPatients, myPatients);
+                // Re-apply Firestore-authoritative delivered state (survives a
+                // flaky WRITE_URL round-trip; rebuilds vanished archived rows)
+                applyDeliveredState();
                 // Lock each patient's prediction reference to last known assessment time
                 patients.forEach(p => { p.assessedAt = resolveAssessedAt(p); });
 
@@ -1094,6 +1106,75 @@
             } else {
                 localStorage.setItem(SNAP_KEY, JSON.stringify(store));
             }
+        }
+
+        // ── Delivered-state persistence (Firestore-authoritative) ─────────────
+        //
+        //  The delivered flag must NOT depend on the fragile WRITE_URL round-trip
+        //  (which can drop patients, making delivered ones reappear or vanish).
+        //  We store it in the same Firestore patient doc, keyed by patient identity,
+        //  plus a copy of the last clinical data so the archived row can always be
+        //  rebuilt even if the patient disappears from Simon's list and the backend.
+        function setDeliveredState(p, delivered) {
+            const k  = patientKey(p);
+            const ek = encodeKey(k);
+            const store = allSnapshots();
+            const rec = store[k] || store[ek] || { history: [] };
+            rec.delivered   = delivered;
+            rec.deliveredAt = delivered ? new Date().toISOString() : null;
+            rec.lastName    = p.name || rec.lastName || (k.split('|')[0] || '');
+            rec.lastRoom    = p.room || rec.lastRoom || (k.split('|')[1] || '');
+            rec.lastClinical = {
+                para: p.para, dilation: p.dilation, effacement: p.effacement,
+                station: p.station, vs: p.vs,
+                epidural: p.epidural, induction: p.induction, prom: p.prom
+            };
+            store[ek] = rec; if (k !== ek) store[k] = rec;
+            if (CLOUD && fbDb) {
+                fbDb.collection('patients').doc(ek).set({
+                    delivered:    delivered,
+                    deliveredAt:  rec.deliveredAt,
+                    lastName:     rec.lastName,
+                    lastRoom:     rec.lastRoom,
+                    lastClinical: rec.lastClinical,
+                    updatedAt:    new Date().toISOString()
+                }, { merge: true }).catch(e => console.warn('delivered save failed', k, e));
+            } else {
+                localStorage.setItem(SNAP_KEY, JSON.stringify(store));
+            }
+        }
+
+        // Re-apply Firestore-authoritative delivered state onto patients[]:
+        //   (a) mark patients already in the list as delivered, and
+        //   (b) rebuild archived rows for delivered patients that fell out of
+        //       both Simon's list and the WRITE_URL backend.
+        function applyDeliveredState() {
+            const store = allSnapshots();
+            if (!store) return;
+            patients.forEach(p => {
+                const k = patientKey(p);
+                const rec = store[k] || store[encodeKey(k)];
+                if (rec && rec.delivered) p.delivered = true;
+            });
+            const presentKeys = new Set(patients.map(p => encodeKey(patientKey(p))));
+            Object.keys(store).forEach(sk => {
+                const rec = store[sk];
+                if (!rec || !rec.delivered) return;
+                const ek = encodeKey(sk);
+                if (presentKeys.has(ek)) return;
+                presentKeys.add(ek);
+                const lc = rec.lastClinical || {};
+                patients.push({
+                    name: rec.lastName || sk.split('|')[0] || '',
+                    room: rec.lastRoom || sk.split('|')[1] || '',
+                    para: lc.para || '', dilation: lc.dilation || '', effacement: lc.effacement || '',
+                    station: lc.station || '', vs: lc.vs || '',
+                    epidural: lc.epidural || false, induction: lc.induction || false, prom: lc.prom || false,
+                    delivered: true, source: 'local', editedHere: true, deletedBySimon: false,
+                    assessedAt: rec.deliveredAt || new Date().toISOString()
+                });
+            });
+            sortPatients();
         }
 
         function takeSnapshot(p) {
@@ -1505,6 +1586,9 @@
 
         function clearArchivedRows() {
             if (!confirm("確定清除所有已分娩記錄？此操作將從您的名單中永久移除。")) return;
+            // Clear the Firestore delivered flag too, or applyDeliveredState would
+            // rebuild these rows on the next load. History snapshots are kept.
+            patients.filter(isArchivedPatient).forEach(p => setDeliveredState(p, false));
             patients = patients.filter(p => !isArchivedPatient(p));
             renderTable();
             if (HAS_OWN_BACKEND) silentSave();
@@ -1526,6 +1610,7 @@
             if (!confirm(`確定將「${p.name || '此產婦'}」標記為已分娩？`)) return;
             p.delivered = true;
             p.editedHere = true;
+            setDeliveredState(p, true);   // authoritative: persist to Firestore
             sortPatients();
             renderTable();
             if (HAS_OWN_BACKEND) silentSave();
@@ -1540,6 +1625,8 @@
             p.deletedBySimon = false;
             p.source = 'local';
             p.editedHere = true;
+            setDeliveredState(p, false);   // clear delivered state in Firestore
+            sortPatients();
             renderTable();
             if (HAS_OWN_BACKEND) silentSave();
         }
@@ -1605,6 +1692,8 @@
             if (localStorage.getItem(CLEANUP_KEY) === today) return;
             localStorage.setItem(CLEANUP_KEY, today);
             const before = patients.length;
+            // Clear delivered flags so cleaned rows don't reappear via applyDeliveredState
+            patients.filter(isArchivedPatient).forEach(p => setDeliveredState(p, false));
             patients = patients.filter(p => !isArchivedPatient(p));
             if (patients.length < before) {
                 renderTable();
