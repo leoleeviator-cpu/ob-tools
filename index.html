@@ -1305,20 +1305,28 @@
 
         // ── Render ────────────────────────────────────────────────────────────
 
-        function renderTable() {
-            const tbody = document.getElementById('patientTableBody');
-            // 最後內診 = the most recent exam among active patients (advances when
-            // staff record exams here); falls back to Simon's last-update time.
-            let latestExam = (rawUpdateStr && rawUpdateStr !== "無紀錄") ? parseToDate(rawUpdateStr) : null;
+        // Header timestamps.
+        //   最後內診 = the most recent exam CHARTED ON THIS SITE (editedHere). This
+        //     site is now primary; Simon is a frozen read-only backup, so his
+        //     last-update clock must NEVER drive this field (it was the source of
+        //     the stuck "yesterday 22:09"). If nobody has charted here yet, show —.
+        //   已更新  = when this view last synced (now).
+        function updateHeaderTimes() {
+            let latestExam = null;
             patients.forEach(p => {
-                if (isArchivedPatient(p) || !p.assessedAt) return;
+                if (isArchivedPatient(p) || !p.editedHere || !p.assessedAt) return;
                 const t = parseToDate(p.assessedAt);
                 if (!latestExam || t > latestExam) latestExam = t;
             });
-            document.getElementById('lastUpdate').innerText = latestExam ? formatDisplayTime(latestExam) : "無紀錄";
-            // 已更新 = when this view last synced (now).
+            const lu = document.getElementById('lastUpdate');
+            if (lu) lu.innerText = latestExam ? formatDisplayTime(latestExam) : "尚無本站內診";
             const syncEl = document.getElementById('syncTime');
             if (syncEl) syncEl.innerText = formatDisplayTime(new Date());
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('patientTableBody');
+            updateHeaderTimes();
 
             // Archived row count
             const archivedCount = patients.filter(isArchivedPatient).length;
@@ -1416,11 +1424,21 @@
 
         // ── Edit & Save ───────────────────────────────────────────────────────
 
+        // Fields that constitute a cervical exam — changing any of them is a NEW
+        // exam, so we re-anchor the patient's assessment time to now.
+        const EXAM_FIELDS = ['dilation','effacement','station','epidural','induction','prom'];
+
         function updateField(index, field, value) {
             patients[index][field] = value;
             // Editing here claims the patient locally: this site now wins, so
             // Simon's backup site can no longer overwrite these fields.
             patients[index].editedHere = true;
+            // A clinical change = a fresh exam charted here → stamp it NOW and
+            // refresh 最後內診 live (do not wait for the next sync).
+            if (EXAM_FIELDS.includes(field)) {
+                patients[index].assessedAt = new Date().toISOString();
+                updateHeaderTimes();
+            }
             // Live-update prediction cells without full re-render
             const row = document.getElementById(`mainRow_${index}`);
             if (row) {
