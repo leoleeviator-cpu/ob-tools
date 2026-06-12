@@ -216,9 +216,9 @@
                     <th class="flag-col" title="Epidural analgesia">Epi</th>
                     <th class="flag-col" title="Labor induction">Ind</th>
                     <th class="flag-col" title="Premature rupture of membranes">PROM</th>
-                    <th class="col-simon display-only">簡氏預測 v1</th>
-                    <th class="col-leo   display-only">新版 (介入修正) v2</th>
-                    <th class="col-range display-only">新版產程區間預測</th>
+                    <th class="col-simon display-only">簡氏原始公式</th>
+                    <th class="col-leo   display-only">文獻公式</th>
+                    <th class="col-range display-only">本院區間預測 ⭐</th>
                     <th style="width:50px">📊 記錄</th>
                     <th style="width:78px">完成分娩請按這</th>
                     <th class="edit-only" style="width:50px">操作</th>
@@ -229,13 +229,12 @@
     </div>
 
     <div class="legend legend-models">
-        <strong>🟣 簡氏 v1</strong>：原作原始公式，傾向高估。
-        <strong>🔴 新版 (介入修正) v2</strong>：Zhang 2010＋ACOG 2024 文獻公式，含 Epi／Ind／PROM 修正因子。
-        <strong>🔵 新版產程區間預測</strong>：以本院實際資料擬合（累計 27 名產婦、269 筆）。<strong>≥3 公分</strong>採含胎次校正的 v5 與 v4 之中點 ±2 小時區間（涵蓋約 6 成，初產婦約 7 成）；<strong>&lt;3 公分</strong>仍顯示 v3–v4 估計。實際分娩時間預期落於區間內，請勿視為保證。
+        <strong>🟣 簡氏原始公式</strong>：本工具原作最初的估算公式，傾向高估，僅供對照。
+        <strong>🔴 文獻公式</strong>：依國際文獻與指引（Zhang 2010、ACOG 2024）計算，並依無痛分娩／催生／早期破水自動修正。
+        <strong>🔵 本院區間預測 ⭐ 建議參考</strong>：以本院實際分娩資料擬合（累計 27 名產婦、269 筆）。子宮頸開 <strong>≥3 公分</strong>時，顯示一段預估分娩時間區間（已依胎次校正），實際分娩多落於此區間內；<strong>&lt;3 公分</strong>變異大，僅供參考。
     </div>
     <div class="legend legend-notes">
-        ※ 以累計 27 名產婦、269 筆內診資料驗證。子宮頸開 <strong>≥3 公分</strong>後較準（誤差約 2 小時）；
-        潛伏期（&lt;3 公分）變異大，請以「時間區間」參考、勿視為精確時刻。
+        ※ 子宮頸開 <strong>≥3 公分</strong>後較準（誤差約 2 小時）；潛伏期（<strong>&lt;3 公分</strong>）變異大，請視為粗估、勿當精確時刻。
         ｜ <strong>已分娩</strong>：記錄人員已將其從名單移除，此處保留供歷史比對。
     </div>
 
@@ -1369,9 +1368,9 @@
                 <table class="history-table">
                     <thead><tr>
                         <th>評估時間</th><th>Dil</th><th>Eff%</th><th>Sta.</th><th>旗標</th>
-                        <th class="col-simon">簡氏 v1</th>
-                        <th class="col-leo">新版 v2</th>
-                        <th class="col-range">區間預測 v3–v4</th>
+                        <th class="col-simon">簡氏原始公式</th>
+                        <th class="col-leo">文獻公式</th>
+                        <th class="col-range">本院區間預測</th>
                     </tr></thead>
                     <tbody>${rows}</tbody>
                 </table>
